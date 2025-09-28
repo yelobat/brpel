@@ -38,6 +38,10 @@
 (defvar brpel-remote-id 1
   "Incrementing ID for JSON-RPC requests.")
 
+(defun brpel--default-callback (result)
+  "The default callback that simply prints the RESULT of each BRP command."
+  (message (json-encode result)))
+
 (defun brpel-send-request (method &optional params callback)
   "Send a JSON-RPC request to the BRP server.
 
@@ -69,115 +73,127 @@ CALLBACK is a function to handle the response buffer."
                   nil t)))
 
 (defun brpel-id (id)
-  "Convert an ID in the format <Index>v<Generation> to a u64."
+  "Convert an ID in the format <Index>v<Generation> to a u64.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (let* ((lst (mapcar #'string-to-number (split-string id "v")))
          (index (nth 0 lst))
          (generation (nth 1 lst)))
     (+ index (* generation (expt 2 32)))))
 
 ;; Method: bevy/get
-(defun brpel-get (id components &optional strict)
-  "Retrieve the values of one or more COMPONENTS from an entity with ID."
+(defun brpel-get (id components &optional strict callback)
+  "Retrieve the values of one or more COMPONENTS from an entity with ID.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/get"
                       `((entity . ,id)
                         (components . ,components)
                         (strict . ,(or strict :json-false)))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/query
-(defun brpel-query (data filter &optional strict)
+(defun brpel-query (data filter &optional strict callback)
   "Perform a query over components in the ECS.
 Returning all matching entities and their associated component values.
 Use DATA, FILTER and STRICT to determine the entities returned.
+If CALLBACK is non-nil, it will be called on the result of this command.
 See https://docs.rs/bevy_remote/latest/bevy_remote/ for more details."
   (brpel-send-request "bevy/query"
                       `((data . ,data)
                         (filter . ,filter)
                         (strict . ,(or strict :json-false)))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/spawn
 ;; BUG: https://github.com/bevyengine/bevy/issues/20952
-(defun brpel-spawn (components)
+(defun brpel-spawn (components &optional callback)
   "Create a new entity with the provided COMPONENTS.
-Return the resulting entity ID."
+Return the resulting entity ID.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/spawn"
                       `((components . ,components))
-                      (lambda (res)
-                        (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/destroy
-(defun brpel-destroy (id)
-  "Despawn the entity with the given ID."
+(defun brpel-destroy (id &optional callback)
+  "Despawn the entity with the given ID.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/destroy"
                       `((entity . ,id))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/remove
-(defun brpel-remove (id components)
-  "Delete one or more COMPONENTS from an entity with ID."
+(defun brpel-remove (id components &optional callback)
+  "Delete one or more COMPONENTS from an entity with ID.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/remove"
                       `((entity . ,id)
                         (components . ,components))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/insert
 ;; BUG: https://github.com/bevyengine/bevy/issues/20952
-(defun brpel-insert (id components)
-  "Insert one or more COMPONENTS into an entity with ID."
+(defun brpel-insert (id components &optional callback)
+  "Insert one or more COMPONENTS into an entity with ID.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/insert"
                       `((entity . ,id)
                         (components . ,components))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/mutate_component
-(defun brpel-mutate-component (id component path value)
+(defun brpel-mutate-component (id component path value &optional callback)
   "Mutate a field in a COMPONENT for an entity with ID.
 PATH represents the path of the field in the component.
-VALUE represents the value to insert at PATH."
+VALUE represents the value to insert at PATH.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/mutate_component"
                       `((entity . ,id)
                         (component . ,component)
                         (path . ,path)
                         (value . ,value))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/reparent
-(defun brpel-reparent (ids &optional parent)
-  "Assign a new PARENT to one or more entities for each ID in IDS."
+(defun brpel-reparent (ids &optional parent callback)
+  "Assign a new PARENT to one or more entities for each ID in IDS.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/reparent"
                       `((entities . ,ids)
                         (parent . ,parent))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/list
-(defun brpel-list (id)
-  "List all registered components or all components present on an entity with ID."
+(defun brpel-list (&optional id callback)
+  "List all registered components or all components present on an entity with ID.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/list"
                       (if id `((entity . ,id)))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/get+watch
 ;; TODO Need to figure out how to best make use of this function.
-(defun brpel-get+watch (id components &optional strict)
-  "Watch the values of one or more COMPONENTS from an entity with ID."
+(defun brpel-get+watch (id components &optional strict callback)
+  "Watch the values of one or more COMPONENTS from an entity with ID.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/get+watch"
                       `((entity . ,id)
                         (components . ,components)
                         (strict . ,(or strict :json-false)))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/list+watch
 ;; TODO Need to figure out how to best make use of this function.
-(defun brpel-list+watch (id)
-  "Watch all components present on an entity with ID."
+(defun brpel-list+watch (id &optional callback)
+  "Watch all components present on an entity with ID.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/list+watch"
                       `((entity . ,id))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/get_resource
-(defun brpel-get-resource (resource-name)
-  "Extract the value of a given resource with RESOURCE-NAME from the world."
+(defun brpel-get-resource (resource-name &optional callback)
+  "Extract the value of a given resource with RESOURCE-NAME from the world.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (interactive "sResource name: ")
   (brpel-send-request "bevy/get_resource"
                     `((resource . ,resource-name))
@@ -185,37 +201,41 @@ VALUE represents the value to insert at PATH."
                       (message (json-encode res)))))
 
 ;; Method: bevy/insert_resource
-(defun brpel-insert-resource (resource value)
-  "Extract the VALUE of a given RESOURCE from the world."
+(defun brpel-insert-resource (resource value &optional callback)
+  "Extract the VALUE of a given RESOURCE from the world.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/insert_resource"
                       `((resource . ,resource)
                         (value . ,value))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/remove_resource
-(defun brpel-remove-resource (resource)
-  "Remove the given RESOURCE from the world."
+(defun brpel-remove-resource (resource &optional callback)
+  "Remove the given RESOURCE from the world.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/remove_resource"
                       `((resource . ,resource))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/mutate_resource
-(defun brpel-mutate-resource (resource path value)
+(defun brpel-mutate-resource (resource path value &optional callback)
   "Mutate a field in a RESOURCE.
 PATH is the path to the field within the RESOURCE.
-VALUE is the value to be inserted at PATH."
+VALUE is the value to be inserted at PATH.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "bevy/mutate_resource"
                       `((resource . ,resource)
                         (path . ,path)
                         (value . ,value))
-                      (lambda (res) (message (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/list_resources
-(defun brpel-list-resources ()
-  "List all reflectable registered resource types on the BRP server."
+(defun brpel-list-resources (&optional callback)
+  "List all reflectable registered resource types on the BRP server.
+If CALLBACK is non-nil, it will be called on the result of this command."
   (interactive)
   (brpel-send-request "bevy/list_resources" nil
-                      (lambda (res) (message "%s" (json-encode res)))))
+                      (or callback 'brpel--default-callback)))
 
 (provide 'brpel)
 ;;; brpel.el ends here
