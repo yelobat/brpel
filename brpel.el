@@ -322,7 +322,7 @@ If PARENT is non-nil, it will reparent the entity, otherwise it will be
 removed from it's current parent.
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request "world.reparent_entities"
-                      `((entities . ,entities)
+                      `((entities . ,ids)
                         (parent . ,parent))
                       (or callback 'brpel--default-callback)))
 
