@@ -127,7 +127,7 @@ For Bevy v0.17.0, here are some examples on how to use them:
 ### `brpel-world-reparent-entites`
 
 ``` emacs-lisp
-
+(brpel-world-reparent-entities 8589934559)
 ```
 
 ### `brpel-world-list-components`
