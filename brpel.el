@@ -9,7 +9,7 @@
 ;; Version: 0.1.0
 ;; Keywords: brp comm data docs extensions games hardware lisp local multimedia processes tools unix
 ;; Homepage: https://github.com/yelobat/brp
-;; Package-Requires: ((emacs "28.1"))
+;; Package-Requires: ((emacs "28.1") (json-mode "0.2"))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
