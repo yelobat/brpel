@@ -26,6 +26,7 @@
 (require 'json-mode)
 
 (require 'magit)
+(require 'transient)
 
 (defgroup brpel nil
   "Interface with a BRP server."
@@ -38,6 +39,9 @@
 
 (defvar brpel-remote-id 1
   "Incrementing ID for JSON-RPC requests.")
+
+(defvar brpel-component-filters nil
+  "The component filters in the ECS browser.")
 
 (defun brpel--default-callback (result)
   "The default callback that simply prints the RESULT of each BRP command."
@@ -554,183 +558,30 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   "Discover available remote methods and server information."
   (brpel-send-request-synchronously "rpc.discover" nil))
 
-
-;; brpel browser
-(defvar brpel--browser-top-directories
-  '("Resources" "Entities" "RPC_Methods")
-  "Fake directories shown at the root of the browser.")
-
-(defvar brpel--browser-current-path nil
-  "The current browser path.")
-
-(defconst brpel--browser-buffer "brpel browser")
-
-(defun brpel--browser-insert-root ()
-  "Insert the top-level directories into the current buffer."
-  (dolist (name brpel--browser-top-directories)
-    (insert-button name
-                   'action (lambda (_) (brpel--browser-render (list name)))
-                   'follow-link nil
-                   'face 'dired-directory)
-    (insert "\n")))
+;; BRP Browser
+(defconst brpel--browser-buffer "*brpel browser*")
 
 (defvar brpel-browser-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "RET") #'brpel--browser-open)
-    (define-key map (kbd "^") #'brpel--browser-up)
-    (define-key map (kbd "C-c C-k") #'brpel--browser-up)
-    (define-key map (kbd "C-c C-g") #'brpel--browser-render)
-    (define-key map (kbd "C-c C-q") #'quit-window)
+  (let ((map (copy-keymap magit-section-mode-map)))
+    (define-key map (kbd "h") #'brpel-browser-menu)
+    (define-key map (kbd "RET") (lambda ()
+                                  (interactive)
+                                  (message "Section: %S" (magit-current-section))))
+    (define-key map (kbd "g") #'brpel--browser-refresh)
     map)
   "Keymap for `brpel-browser-mode'.")
 
-(defvar brpel-json-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-k") #'brpel--browser-up)
-    (define-key map (kbd "C-c C-s") #'brpel--browser-save)
-    (define-key map (kbd "C-c C-q") #'quit-window)
-    map)
-  "Keymap for `brpel-json-mode'.")
+(define-derived-mode brpel-browser-mode magit-section-mode "brpel-browser"
+  "Major mode for browsing the Bevy ECS.")
 
-(define-derived-mode brpel-json-mode json-mode "brpel-json"
-  "Major mode for editing Resources and Components."
-  (buffer-enable-undo)
-  (setq buffer-read-only nil))
-
-(define-derived-mode brpel-browser-mode special-mode "brpel-browser"
-  "Major mode for browsing the Bevy ECS via a dired-like interface."
-  (buffer-disable-undo)
-  (setq buffer-read-only t))
-
-;; TODO The component update is slow, should only
-;; update the paths in the component that were changed.
-(defun brpel--browser-save ()
-  "Save the contents and sent to the Bevy ECS."
-  (interactive)
-  (cond
-   ((equal (car brpel--browser-current-path) "Entities")
-    (let* ((content (split-string (with-current-buffer (get-buffer-create "brpel browser")
-                                    (buffer-substring-no-properties (point-min) (point-max))) "\n"))
-           (entity (string-to-number (elt brpel--browser-current-path 1)))
-           (component (elt brpel--browser-current-path 2))
-           (values (cdr (car (json-read-from-string (mapconcat #'concat (cdr content) "\n"))))))
-      (dolist (value values)
-        (let ((path (symbol-name (car value)))
-              (new-value (cdr value)))
-          (brpel-world-mutate-components-synchronously entity component path new-value)))))
-   ((equal (car brpel--browser-current-path) "Resources")
-    (let* ((content (split-string (with-current-buffer (get-buffer-create "brpel browser")
-                                    (buffer-substring-no-properties (point-min) (point-max))) "\n"))
-           (resource (car (last (split-string (car content) "/"))))
-           (value (json-read-from-string (mapconcat #'concat (cdr content) "\n"))))
-      (brpel-world-insert-resources-synchronously resource value)))))
-
-(defun brpel--browser-open ()
-  "Open the directory or file at point."
-  (call-interactively #'push-button))
-
-(defun brpel--browser-up ()
-  "Move up in the directory hierarchy in the browser."
-  (interactive)
-  (when brpel--browser-current-path
-    (brpel--browser-render (butlast brpel--browser-current-path))))
-
-(defun brpel--browser-insert-json-buffer (data)
-  "Insert DATA (alist) as pretty-printed JSON data."
-  (let ((inhibit-read-only t))
-    (brpel-json-mode)
-    (save-excursion
-      (insert (json-encode data)))
-    (json-pretty-print (point) (point-max))))
-
-(defun brpel--browser-insert-current-path ()
-  "Insert the current browser path into the current buffer."
-  (let* ((remote (concat brpel-remote-url "/"))
-         (path (mapconcat #'concat brpel--browser-current-path "/"))
-         (time (format-time-string "%b %e %H:%M")))
-    (insert (format "%s\n" (concat remote path)))))
-
-(defun brpel--browser-insert-resources (path)
-  "List all reflectable resources.
-PATH contains Resources followed by an optional Resource Name."
-  (cond
-   ((= (length path) 1)
-    (let ((names (append (alist-get 'result (brpel-world-list-resources-synchronously)) nil)))
-      (dolist (name names)
-        (insert-button name
-                       'action (lambda (_) (brpel--browser-render (append path (list name))))
-                       'follow-link nil
-                       'face 'dired-directory)
-        (insert "\n"))))
-   ((= (length path) 2)
-    (let* ((resource (elt path 1))
-           (data (brpel-world-get-resources-synchronously resource))
-           (json (alist-get 'value (alist-get 'result data))))
-      (brpel--browser-insert-json-buffer json)))))
-
-(defun brpel--browser-insert-rpc-methods ()
-  "Insert all of the supported RPC Methods by the current server."
-  (let* ((results (alist-get 'result (brpel-rpc-discover-synchronously)))
-         (methods (append (alist-get 'methods results) nil)))
-    (dolist (method methods)
-      (insert (format "%s\n" (alist-get 'name method))))))
-
-
-
-(defun brpel--all-entities ()
-  "Get all the entity IDs from the current bevy server."
+(defun brpel--entities (components)
+  "Get all entity IDs which have COMPONENTS."
   (mapcar (lambda (entity) (alist-get 'entity entity))
           (alist-get 'result (brpel-world-query-synchronously
-                              `((components . [])
+                              `((components . ,(vconcat components))
                                 (option . "all")
                                 (has . []))
                               `((with . []) (without . []))))))
-
-(defun brpel--browser-insert-entities (path)
-  "Insert all Entities currently present in the Bevy app.
-PATH contains Entities followed by an optional Entity ID, and Component Name."
-  (cond
-   ((= (length path) 1)
-    (let ((entities (brpel--all-entities)))
-      (dolist (entity entities)
-        (insert-button (format "%d\n" entity)
-                       'action (lambda (_) (brpel--browser-render (append path (list (format "%d" entity)))))
-                       'follow-link nil
-                       'face 'dired-directory))))
-   ((= (length path) 2)
-    (let* ((entity (string-to-number (elt path 1)))
-           (components (append (alist-get 'result (brpel-world-list-components-synchronously entity)) nil)))
-      (dolist (component components)
-        (insert-button (format "%s\n" component)
-                       'action (lambda (_) (brpel--browser-render (append path (list component))))
-                       'follow-link nil
-                       'face 'dired-directory))))
-   ((= (length path) 3)
-    (let* ((entity (string-to-number (elt path 1)))
-           (component (elt path 2))
-           (data (brpel-world-get-components-synchronously
-                  entity
-                  (vector component)))
-           (json (alist-get 'components (alist-get 'result data))))
-      (brpel--browser-insert-json-buffer json)))))
-
-
-
-(defun brpel--browser-render (&optional path)
-  "Render the browser buffer for PATH."
-  (interactive)
-  (with-current-buffer (get-buffer-create brpel--browser-buffer)
-    (brpel-browser-mode)
-    (let ((inhibit-read-only t))
-      (erase-buffer)
-      (setq brpel--browser-current-path path)
-      (brpel--browser-insert-current-path)
-      (save-excursion
-        (cond
-         ((null path) (brpel--browser-insert-root))
-         ((equal (car path) "Resources") (brpel--browser-insert-resources path))
-         ((equal (car path) "Entities") (brpel--browser-insert-entities path))
-         ((equal (car path) "RPC_Methods") (brpel--browser-insert-rpc-methods)))))))
 
 (defun brpel--try-connection ()
   "Attempts to perform an connect to the BRP server."
@@ -744,18 +595,6 @@ PATH contains Entities followed by an optional Entity ID, and Component Name."
     (setq brpel-remote-url
           (read-string (format prompt brpel-remote-url))))
   (message (format "BRP server now located at: '%s'" brpel-remote-url)))
-
-(defun brpel-browse ()
-  "Open the brpel ECS browser."
-  (interactive)
-  (if (not (brpel--try-connection))
-      (brpel--update-connection))
-  (condition-case err
-      (let nil
-        (brpel-rpc-discover-synchronously)
-        (switch-to-buffer brpel--browser-buffer)
-        (brpel--browser-render nil))
-    (error (message (car (last err))))))
 
 (defun brpel--browser-modeline ()
   "Render the ECS browser's modeline."
@@ -777,11 +616,11 @@ PATH contains Entities followed by an optional Entity ID, and Component Name."
 
 (defun brpel--browser-entities ()
   "Render the ECS entities in the browser."
-  (let* ((entities (append (brpel--all-entities) nil))
+  (let* ((entities (append (brpel--entities brpel-component-filters) nil))
          (entity-count (length entities)))
     (magit-insert-section (brpel-entities)
       (magit-insert-heading entity-count "Entities")
-      (dolist (entity (append (brpel--all-entities) nil))
+      (dolist (entity (append entities nil))
         (magit-insert-section (brpel-entity)
           (magit-insert-heading (format "%d" entity)))))))
 
@@ -796,24 +635,96 @@ PATH contains Entities followed by an optional Entity ID, and Component Name."
         (magit-insert-section (brpel-rpc-methods)
           (magit-insert-heading (alist-get 'name method)))))))
 
-(defun brpel--browser-render2 ()
+(defun brpel--browser-component-filters ()
+  "Render the current component filters."
+  (let ((component-filter-count (length brpel-component-filters)))
+    (magit-insert-section (brpel-component-filters)
+      (magit-insert-heading component-filter-count "Component Filters")
+      (dolist (component-filter brpel-component-filters)
+        (magit-insert-section (brpel-component-filter)
+          (magit-insert-heading component-filter))))))
+
+(defun brpel--browser-divider ()
+  "Insert a dividider in the ECS browser."
+  (insert ?\n))
+
+(defun brpel--browser-render ()
   "Render the ECS browser."
   (interactive)
   (let ((buffer (get-buffer-create brpel--browser-buffer)))
     (with-current-buffer buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (magit-section-mode)
+        (brpel-browser-mode)
         (save-excursion
           (magit-insert-section (brpel-browser)
             (brpel--browser-modeline)
+            (brpel--browser-component-filters)
+            (brpel--browser-divider)
             (brpel--browser-resources)
             (brpel--browser-entities)
             (brpel--browser-rpc-methods))
           (magit-section-hide-children (magit-current-section)))))
     (switch-to-buffer-other-window buffer)))
 
-(defun brpel-browse2 ()
+(defun brpel--browser-refresh ()
+  "Refresh the ECS browser."
+  (interactive)
+  (let ((buffer (get-buffer-create brpel--browser-buffer)))
+    (with-current-buffer buffer
+      (save-excursion
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (brpel-browser-mode)
+          (magit-insert-section (brpel-browser)
+            (brpel--browser-modeline)
+            (brpel--browser-component-filters)
+            (brpel--browser-divider)
+            (brpel--browser-resources)
+            (brpel--browser-entities)
+            (brpel--browser-rpc-methods))
+          (magit-section-hide-children (magit-current-section)))))))
+
+(defun brpel-nothing ()
+  "A function in brpel that does nothing."
+  (interactive)
+  nil)
+
+(defun brpel--browser-add-component-filter ()
+  "Accepts a component name to be used as part of the entity filter.
+Adds this component name to the list of components used to filter
+entities."
+  (interactive)
+  (let* ((components (alist-get 'result (brpel-world-list-components-synchronously)))
+        (collection (append components nil))
+        (input (completing-read "Component: " collection)))
+    (add-to-list 'brpel-component-filters input))
+  (brpel--browser-refresh))
+
+(defun brpel--browser-reset-component-filters ()
+  "Reset the list of components in the component filter."
+  (interactive)
+  (setq brpel-component-filters nil)
+  (brpel--browser-refresh))
+
+(defun brpel-browser-display-component-filter ()
+  "Display the component filter."
+  (interactive)
+  (or brpel-component-filters) '(:info "None"))
+
+(transient-define-prefix brpel-browser-entity-filter-menu ()
+  "Entity Component Filter menu."
+  ["Actions"
+   ("a" "Add filter.." brpel--browser-add-component-filter :transient t)
+   ("r" "Reset filters" brpel--browser-reset-component-filters :transient t)])
+
+(transient-define-prefix brpel-browser-menu ()
+  "ECS browser menu."
+  ["Filters"
+   ("r" "Select Resource" brpel-browser-entity-filter-menu)
+   ("c" "Filter Entities via Components" brpel-browser-entity-filter-menu)])
+
+(defun brpel-browse ()
   "Open the brpel ECS browser."
   (interactive)
   (if (not (brpel--try-connection))
@@ -821,7 +732,7 @@ PATH contains Entities followed by an optional Entity ID, and Component Name."
   (condition-case err
       (let nil
         (brpel-rpc-discover-synchronously)
-        (brpel--browser-render2))
+        (brpel--browser-render))
     (error (message (car (last err))))))
 
 (provide 'brpel)
