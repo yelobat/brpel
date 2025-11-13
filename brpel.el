@@ -726,9 +726,24 @@ PATH contains Entities followed by an optional Entity ID, and Component Name."
          ((equal (car path) "Entities") (brpel--browser-insert-entities path))
          ((equal (car path) "RPC_Methods") (brpel--browser-insert-rpc-methods)))))))
 
+(defun brpel--try-connection ()
+  "Attempts to perform an connect to the BRP server."
+  (condition-case _err
+        (and (brpel-rpc-discover-synchronously) t)
+    (error nil)))
+
+(defun brpel--update-connection ()
+  "Update the connection to the BRP server."
+  (let ((prompt "Connection failed. Enter BRP server location (CURRENT: %s): "))
+    (setq brpel-remote-url
+          (read-string (format prompt brpel-remote-url))))
+  (message (format "BRP server now located at: '%s'" brpel-remote-url)))
+
 (defun brpel-browse ()
   "Open the brpel ECS browser."
   (interactive)
+  (if (not (brpel--try-connection))
+      (brpel--update-connection))
   (condition-case err
       (let nil
         (brpel-rpc-discover-synchronously)
