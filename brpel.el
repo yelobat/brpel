@@ -759,18 +759,17 @@ PATH contains Entities followed by an optional Entity ID, and Component Name."
 
 (defun brpel--browser-modeline ()
   "Render the ECS browser's modeline."
-  (magit-insert-section (brpel-modeline t nil)
+  (magit-insert-section (brpel-modeline)
     (insert (format "%-10s" "BRP Server: "))
     (insert (propertize brpel-remote-url 'font-lock-face 'magit-hash))
-    (insert ?\n)
-    (insert ?\n)))
+    (insert "\n\n")))
 
 (defun brpel--browser-resources ()
   "Render the ECS resources in the browser."
   (let* ((result (alist-get 'result (brpel-world-list-resources-synchronously)))
          (names (append result nil))
          (name-count (length names)))
-    (magit-insert-section (brpel-resources t nil)
+    (magit-insert-section (brpel-resources)
       (magit-insert-heading name-count "Resources")
       (dolist (name names)
         (magit-insert-section (brpel-resource)
@@ -780,7 +779,7 @@ PATH contains Entities followed by an optional Entity ID, and Component Name."
   "Render the ECS entities in the browser."
   (let* ((entities (append (brpel--all-entities) nil))
          (entity-count (length entities)))
-    (magit-insert-section (brpel-entities t nil)
+    (magit-insert-section (brpel-entities)
       (magit-insert-heading entity-count "Entities")
       (dolist (entity (append (brpel--all-entities) nil))
         (magit-insert-section (brpel-entity)
@@ -791,7 +790,7 @@ PATH contains Entities followed by an optional Entity ID, and Component Name."
   (let* ((result (alist-get 'result (brpel-rpc-discover-synchronously)))
          (methods (append (alist-get 'methods result) nil))
          (method-count (length methods)))
-    (magit-insert-section (brpel-resources nil t)
+    (magit-insert-section (brpel-rpc-methods)
       (magit-insert-heading method-count "RPC Methods")
       (dolist (method methods)
         (magit-insert-section (brpel-rpc-methods)
@@ -799,19 +798,19 @@ PATH contains Entities followed by an optional Entity ID, and Component Name."
 
 (defun brpel--browser-render2 ()
   "Render the ECS browser."
-  (declare (indent 0))
   (interactive)
-  magit-section-initial-visibility-alist
   (let ((buffer (get-buffer-create brpel--browser-buffer)))
     (with-current-buffer buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
         (magit-section-mode)
-        (magit-insert-section (brpel-browser)
-          (brpel--browser-modeline)
-          (brpel--browser-resources)
-          (brpel--browser-entities)
-          (brpel--browser-rpc-methods))))
+        (save-excursion
+          (magit-insert-section (brpel-browser)
+            (brpel--browser-modeline)
+            (brpel--browser-resources)
+            (brpel--browser-entities)
+            (brpel--browser-rpc-methods))
+          (magit-section-hide-children (magit-current-section)))))
     (switch-to-buffer-other-window buffer)))
 
 (defun brpel-browse2 ()
