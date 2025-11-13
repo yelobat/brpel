@@ -25,6 +25,8 @@
 (require 'json)
 (require 'json-mode)
 
+(require 'magit)
+
 (defgroup brpel nil
   "Interface with a BRP server."
   :group 'brpel)
@@ -671,7 +673,9 @@ PATH contains Resources followed by an optional Resource Name."
   (let* ((results (alist-get 'result (brpel-rpc-discover-synchronously)))
          (methods (append (alist-get 'methods results) nil)))
     (dolist (method methods)
-      (insert (format "%s\n"(alist-get 'name method))))))
+      (insert (format "%s\n" (alist-get 'name method))))))
+
+
 
 (defun brpel--all-entities ()
   "Get all the entity IDs from the current bevy server."
@@ -709,6 +713,8 @@ PATH contains Entities followed by an optional Entity ID, and Component Name."
                   (vector component)))
            (json (alist-get 'components (alist-get 'result data))))
       (brpel--browser-insert-json-buffer json)))))
+
+
 
 (defun brpel--browser-render (&optional path)
   "Render the browser buffer for PATH."
@@ -749,6 +755,74 @@ PATH contains Entities followed by an optional Entity ID, and Component Name."
         (brpel-rpc-discover-synchronously)
         (switch-to-buffer brpel--browser-buffer)
         (brpel--browser-render nil))
+    (error (message (car (last err))))))
+
+(defun brpel--browser-modeline ()
+  "Render the ECS browser's modeline."
+  (magit-insert-section (brpel-modeline t nil)
+    (insert (format "%-10s" "BRP Server: "))
+    (insert (propertize brpel-remote-url 'font-lock-face 'magit-hash))
+    (insert ?\n)
+    (insert ?\n)))
+
+(defun brpel--browser-resources ()
+  "Render the ECS resources in the browser."
+  (let* ((result (alist-get 'result (brpel-world-list-resources-synchronously)))
+         (names (append result nil))
+         (name-count (length names)))
+    (magit-insert-section (brpel-resources t nil)
+      (magit-insert-heading name-count "Resources")
+      (dolist (name names)
+        (magit-insert-section (brpel-resource)
+          (magit-insert-heading name))))))
+
+(defun brpel--browser-entities ()
+  "Render the ECS entities in the browser."
+  (let* ((entities (append (brpel--all-entities) nil))
+         (entity-count (length entities)))
+    (magit-insert-section (brpel-entities t nil)
+      (magit-insert-heading entity-count "Entities")
+      (dolist (entity (append (brpel--all-entities) nil))
+        (magit-insert-section (brpel-entity)
+          (magit-insert-heading (format "%d" entity)))))))
+
+(defun brpel--browser-rpc-methods ()
+  "Render the supported RPC methods in the browser."
+  (let* ((result (alist-get 'result (brpel-rpc-discover-synchronously)))
+         (methods (append (alist-get 'methods result) nil))
+         (method-count (length methods)))
+    (magit-insert-section (brpel-resources nil t)
+      (magit-insert-heading method-count "RPC Methods")
+      (dolist (method methods)
+        (magit-insert-section (brpel-rpc-methods)
+          (magit-insert-heading (alist-get 'name method)))))))
+
+(defun brpel--browser-render2 ()
+  "Render the ECS browser."
+  (declare (indent 0))
+  (interactive)
+  magit-section-initial-visibility-alist
+  (let ((buffer (get-buffer-create brpel--browser-buffer)))
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (magit-section-mode)
+        (magit-insert-section (brpel-browser)
+          (brpel--browser-modeline)
+          (brpel--browser-resources)
+          (brpel--browser-entities)
+          (brpel--browser-rpc-methods))))
+    (switch-to-buffer-other-window buffer)))
+
+(defun brpel-browse2 ()
+  "Open the brpel ECS browser."
+  (interactive)
+  (if (not (brpel--try-connection))
+      (brpel--update-connection))
+  (condition-case err
+      (let nil
+        (brpel-rpc-discover-synchronously)
+        (brpel--browser-render2))
     (error (message (car (last err))))))
 
 (provide 'brpel)
