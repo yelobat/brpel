@@ -9,7 +9,7 @@
 ;; Version: 0.1.0
 ;; Keywords: brp comm data docs extensions games hardware lisp local multimedia processes tools unix
 ;; Homepage: https://github.com/yelobat/brpel
-;; Package-Requires: ((emacs "28.1") (json-mode "0.2"))
+;; Package-Requires: ((emacs "28.1"))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
@@ -561,17 +561,44 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 (defconst brpel--browser-buffer "*brpel browser*"
   "The buffer in which the browser is rendered.")
 
+(defvar brpel--current-entity nil
+  "The current entity that is being viewed.")
+
+(defvar brpel--current-component nil
+  "The current component that is being viewed.")
+
+(defvar brpel--current-resource nil
+  "The current resource that is being viewed.")
+
 (defvar brpel--browser-view 'main
   "The current browser view.")
+
+(defconst brpel--temp-file-suffix ".json"
+  "The suffix of temp files used to edit components and resources.")
+
+(defconst brpel--temp-file-prefix "brpel"
+  "The prefix of temp files used to edit components and resources.")
+
+(defun brpel--browser-refresh-view-and-state ()
+  "Refreshes the view state."
+  (interactive)
+  (setq
+   brpel--current-entity nil
+   brpel--current-component nil
+   brpel--current-resource nil
+   brpel--browser-view 'main)
+  (brpel--browser-refresh-view))
+
+(define-minor-mode brpel-edit-mode
+  "Minor mode for editing components and resources.")
 
 (defvar brpel-browser-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map magit-section-mode-map)
-    (define-key map (kbd "h") #'brpel-browser-menu)
-    (define-key map (kbd "RET") (lambda ()
-                                  (interactive)
-                                  (message "Section: %S" (magit-current-section))))
-    (define-key map (kbd "g") #'brpel--browser-refresh)
+    (define-key map (kbd "h") #'brpel--browser-menu)
+    (define-key map (kbd "RET") #'brpel--browser-select)
+    (define-key map (kbd "k") #'brpel--browser-refresh-view-and-state)
+    (define-key map (kbd "g") #'brpel--browser-refresh-view)
     map)
   "Keymap for `brpel-browser-mode'.")
 
@@ -664,13 +691,58 @@ If CALLBACK is non-nil, it will be called on the result of this command."
     (brpel--browser-rpc-methods))
   (magit-section-hide-children (magit-current-section)))
 
+(defun brpel--browser-entity ()
+  "Display the current entity in the ECS browser."
+  (let* ((result (brpel-world-list-components-synchronously brpel--current-entity))
+         (components (append (alist-get 'result result) nil)))
+    (magit-insert-section (brpel-entity)
+      (magit-insert-heading (format "%d" brpel--current-entity))
+      (dolist (component components)
+        (magit-insert-section (brpel-component)
+          (magit-insert-heading component))))))
+
+(defun brpel--browser-entity-layout ()
+  "The entity layout of the ECS browser."
+  (magit-insert-section (brpel-entity-browser)
+    (brpel--browser-modeline)
+    (brpel--browser-divider)
+    (brpel--browser-entity)))
+
+(defun brpel--browser-component-view ()
+  "The component view of the ECS browser."
+  (let* ((file (make-temp-file brpel--temp-file-prefix nil brpel--temp-file-suffix))
+         (buffer (find-file-noselect file))
+         (result (brpel-world-get-components-synchronously
+                  brpel--current-entity
+                  (vector brpel--current-component)))
+         (component (alist-get 'components (alist-get 'result result))))
+    (with-current-buffer buffer
+      (brpel-edit-mode)
+      (save-excursion
+        (insert (json-encode component)))
+      (json-pretty-print (point) (point-max))
+      (display-buffer-below-selected (current-buffer) nil)
+      (switch-to-buffer-other-window (current-buffer)))))
+
+(defun brpel--browser-resource-view ()
+  "The resource view of the ECS browser."
+  (let* ((file (make-temp-file brpel--temp-file-prefix nil brpel--temp-file-suffix))
+         (buffer (find-file-noselect file))
+         (result (brpel-world-get-resources-synchronously brpel--current-resource))
+         (resource (alist-get 'value (alist-get 'result result))))
+    (with-current-buffer buffer
+      (brpel-edit-mode)
+      (save-excursion
+        (insert (json-encode resource)))
+      (json-pretty-print (point) (point-max))
+      (display-buffer-below-selected (current-buffer) nil)
+      (switch-to-buffer-other-window (current-buffer)))))
+
 (defun brpel--browser-layout ()
   "The layout of the ECS browser."
   (cond
    ((equal brpel--browser-view 'main) (brpel--browser-main-layout))
-   ((equal brpel--browser-view 'entity) (message "Currently in the entity view"))
-   ((equal brpel--browser-view 'resource) (message "Currently in the resource view"))
-   ((equal brpel--browser-view 'component) (message "Currently in the component view"))))
+   ((equal brpel--browser-view 'entity) (brpel--browser-entity-layout))))
 
 (defun brpel--browser-render ()
   "Render the ECS browser."
@@ -684,7 +756,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
           (brpel--browser-layout))))
     (switch-to-buffer-other-window buffer)))
 
-(defun brpel--browser-refresh ()
+(defun brpel--browser-refresh-view ()
   "Refresh the ECS browser."
   (interactive)
   (let ((buffer (get-buffer-create brpel--browser-buffer)))
@@ -695,10 +767,26 @@ If CALLBACK is non-nil, it will be called on the result of this command."
         (save-excursion
           (brpel--browser-layout))))))
 
-(defun brpel-nothing ()
-  "A function in brpel that does nothing."
+(defun brpel--browser-select ()
+  "Select the current section at point."
   (interactive)
-  nil)
+  (let* ((type (caar (magit-section-ident (magit-current-section))))
+         (title (buffer-substring-no-properties
+                 (line-beginning-position)
+                 (line-end-position))))
+    (cond
+     ((equal type 'brpel-entity)
+      (setq brpel--browser-view 'entity
+            brpel--current-entity (string-to-number title))
+      (brpel--browser-refresh-view))
+     ((equal type 'brpel-resource)
+      (setq brpel--current-resource title)
+      (brpel--browser-resource-view))
+     ((equal type 'brpel-component)
+      (setq brpel--current-component title)
+      (brpel--browser-component-view)))))
+
+(brpel-world-get-resources-synchronously "bevy_camera::clear_color::ClearColor")
 
 (defun brpel--browser-add-component-filter ()
   "Accepts a component name to be used as part of the entity filter.
@@ -709,25 +797,25 @@ entities."
         (collection (append components nil))
         (input (completing-read "Component: " collection)))
     (add-to-list 'brpel-component-filters input))
-  (brpel--browser-refresh))
+  (brpel--browser-refresh-view))
 
 (defun brpel--browser-reset-component-filters ()
   "Reset the list of components in the component filter."
   (interactive)
   (setq brpel-component-filters nil)
-  (brpel--browser-refresh))
+  (brpel--browser-refresh-view))
 
-(transient-define-prefix brpel-browser-entity-filter-menu ()
+(transient-define-prefix brpel--browser-entity-filter-menu ()
   "Entity Component Filter menu."
   ["Actions"
    ("a" "Add filter.." brpel--browser-add-component-filter :transient t)
    ("r" "Reset filters" brpel--browser-reset-component-filters)])
 
-(transient-define-prefix brpel-browser-menu ()
+(transient-define-prefix brpel--browser-menu ()
   "ECS browser menu."
   ["Filters"
-   ("r" "Select Resource" brpel-browser-entity-filter-menu)
-   ("c" "Filter Entities via Components" brpel-browser-entity-filter-menu)])
+   ("r" "Select Resource" brpel--browser-entity-filter-menu)
+   ("c" "Filter Entities via Components" brpel--browser-entity-filter-menu)])
 
 (defun brpel-browse ()
   "Open the brpel ECS browser."
