@@ -23,7 +23,6 @@
 
 (require 'url)
 (require 'json)
-(require 'json-mode)
 
 (require 'magit)
 (require 'transient)
@@ -559,10 +558,15 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-send-request-synchronously "rpc.discover" nil))
 
 ;; BRP Browser
-(defconst brpel--browser-buffer "*brpel browser*")
+(defconst brpel--browser-buffer "*brpel browser*"
+  "The buffer in which the browser is rendered.")
+
+(defvar brpel--browser-view 'main
+  "The current browser view.")
 
 (defvar brpel-browser-mode-map
-  (let ((map (copy-keymap magit-section-mode-map)))
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map magit-section-mode-map)
     (define-key map (kbd "h") #'brpel-browser-menu)
     (define-key map (kbd "RET") (lambda ()
                                   (interactive)
@@ -571,7 +575,8 @@ If CALLBACK is non-nil, it will be called on the result of this command."
     map)
   "Keymap for `brpel-browser-mode'.")
 
-(define-derived-mode brpel-browser-mode magit-section-mode "brpel-browser"
+(define-derived-mode brpel-browser-mode magit-section-mode "Brpel"
+  :group 'brpel
   "Major mode for browsing the Bevy ECS.")
 
 (defun brpel--entities (components)
@@ -584,7 +589,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
                               `((with . []) (without . []))))))
 
 (defun brpel--try-connection ()
-  "Attempts to perform an connect to the BRP server."
+  "Attempts to perform a connection to the BRP server."
   (condition-case _err
         (and (brpel-rpc-discover-synchronously) t)
     (error nil)))
@@ -648,6 +653,25 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   "Insert a dividider in the ECS browser."
   (insert ?\n))
 
+(defun brpel--browser-main-layout ()
+  "The main layout of the ECS browser."
+  (magit-insert-section (brpel-browser)
+    (brpel--browser-modeline)
+    (brpel--browser-component-filters)
+    (brpel--browser-divider)
+    (brpel--browser-resources)
+    (brpel--browser-entities)
+    (brpel--browser-rpc-methods))
+  (magit-section-hide-children (magit-current-section)))
+
+(defun brpel--browser-layout ()
+  "The layout of the ECS browser."
+  (cond
+   ((equal brpel--browser-view 'main) (brpel--browser-main-layout))
+   ((equal brpel--browser-view 'entity) (message "Currently in the entity view"))
+   ((equal brpel--browser-view 'resource) (message "Currently in the resource view"))
+   ((equal brpel--browser-view 'component) (message "Currently in the component view"))))
+
 (defun brpel--browser-render ()
   "Render the ECS browser."
   (interactive)
@@ -657,14 +681,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
         (erase-buffer)
         (brpel-browser-mode)
         (save-excursion
-          (magit-insert-section (brpel-browser)
-            (brpel--browser-modeline)
-            (brpel--browser-component-filters)
-            (brpel--browser-divider)
-            (brpel--browser-resources)
-            (brpel--browser-entities)
-            (brpel--browser-rpc-methods))
-          (magit-section-hide-children (magit-current-section)))))
+          (brpel--browser-layout))))
     (switch-to-buffer-other-window buffer)))
 
 (defun brpel--browser-refresh ()
@@ -672,18 +689,11 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (interactive)
   (let ((buffer (get-buffer-create brpel--browser-buffer)))
     (with-current-buffer buffer
-      (save-excursion
-        (let ((inhibit-read-only t))
-          (erase-buffer)
-          (brpel-browser-mode)
-          (magit-insert-section (brpel-browser)
-            (brpel--browser-modeline)
-            (brpel--browser-component-filters)
-            (brpel--browser-divider)
-            (brpel--browser-resources)
-            (brpel--browser-entities)
-            (brpel--browser-rpc-methods))
-          (magit-section-hide-children (magit-current-section)))))))
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (brpel-browser-mode)
+        (save-excursion
+          (brpel--browser-layout))))))
 
 (defun brpel-nothing ()
   "A function in brpel that does nothing."
@@ -707,16 +717,11 @@ entities."
   (setq brpel-component-filters nil)
   (brpel--browser-refresh))
 
-(defun brpel-browser-display-component-filter ()
-  "Display the component filter."
-  (interactive)
-  (or brpel-component-filters) '(:info "None"))
-
 (transient-define-prefix brpel-browser-entity-filter-menu ()
   "Entity Component Filter menu."
   ["Actions"
    ("a" "Add filter.." brpel--browser-add-component-filter :transient t)
-   ("r" "Reset filters" brpel--browser-reset-component-filters :transient t)])
+   ("r" "Reset filters" brpel--browser-reset-component-filters)])
 
 (transient-define-prefix brpel-browser-menu ()
   "ECS browser menu."
