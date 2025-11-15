@@ -592,6 +592,18 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 (define-minor-mode brpel-edit-mode
   "Minor mode for editing components and resources.")
 
+(add-hook 'after-save-hook #'brpel--save-edits)
+
+(defun brpel--save-edits ()
+  "Save the edits made to the component or resource to the ECS."
+  (if brpel-edit-mode
+      (with-current-buffer (current-buffer)
+        (let* ((contents (buffer-substring-no-properties (point-min) (point-max)))
+               (result (json-read-from-string contents)))
+          (cond
+           (brpel--current-resource (brpel-world-insert-resources brpel--current-resource result))
+           (brpel--current-component (brpel-world-insert-components brpel--current-entity result)))))))
+
 (defvar brpel-browser-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map magit-section-mode-map)
