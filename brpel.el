@@ -36,10 +36,10 @@
   :type 'string
   :group 'brpel)
 
-(defvar brpel-remote-id 1
+(defvar brpel--remote-id 1
   "Incrementing ID for JSON-RPC requests.")
 
-(defvar brpel-component-filters nil
+(defvar brpel--component-filters nil
   "The component filters in the ECS browser.")
 
 (defun brpel--default-callback (result)
@@ -609,6 +609,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
     (set-keymap-parent map magit-section-mode-map)
     (define-key map (kbd "h") #'brpel--browser-menu)
     (define-key map (kbd "RET") #'brpel--browser-select)
+    (define-key map (kbd "DEL") #'brpel--browser-remove-component-filter)
     (define-key map (kbd "k") #'brpel--browser-refresh-view-and-state)
     (define-key map (kbd "g") #'brpel--browser-refresh-view)
     map)
@@ -660,7 +661,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 
 (defun brpel--browser-entities ()
   "Render the ECS entities in the browser."
-  (let* ((entities (append (brpel--entities brpel-component-filters) nil))
+  (let* ((entities (append (brpel--entities brpel--component-filters) nil))
          (entity-count (length entities)))
     (magit-insert-section (brpel-entities)
       (magit-insert-heading entity-count "Entities")
@@ -681,10 +682,10 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 
 (defun brpel--browser-component-filters ()
   "Render the current component filters."
-  (let ((component-filter-count (length brpel-component-filters)))
+  (let ((component-filter-count (length brpel--component-filters)))
     (magit-insert-section (brpel-component-filters)
       (magit-insert-heading component-filter-count "Component Filters")
-      (dolist (component-filter brpel-component-filters)
+      (dolist (component-filter brpel--component-filters)
         (magit-insert-section (brpel-component-filter)
           (magit-insert-heading component-filter))))))
 
@@ -798,7 +799,18 @@ If CALLBACK is non-nil, it will be called on the result of this command."
       (setq brpel--current-component title)
       (brpel--browser-component-view)))))
 
-(brpel-world-get-resources-synchronously "bevy_camera::clear_color::ClearColor")
+(defun brpel--browser-remove-component-filter ()
+  "Remove the current component filter at point."
+  (interactive)
+  (let* ((type (caar (magit-section-ident (magit-current-section))))
+         (title (buffer-substring-no-properties
+                 (line-beginning-position)
+                 (line-end-position))))
+    (if (equal type 'brpel-component-filter)
+        (let nil
+          (setq brpel--component-filters
+                (remove title brpel--component-filters))
+          (brpel--browser-refresh-view)))))
 
 (defun brpel--browser-add-component-filter ()
   "Accepts a component name to be used as part of the entity filter.
@@ -808,13 +820,13 @@ entities."
   (let* ((components (alist-get 'result (brpel-world-list-components-synchronously)))
         (collection (append components nil))
         (input (completing-read "Component: " collection)))
-    (add-to-list 'brpel-component-filters input))
+    (add-to-list 'brpel--component-filters input))
   (brpel--browser-refresh-view))
 
 (defun brpel--browser-reset-component-filters ()
   "Reset the list of components in the component filter."
   (interactive)
-  (setq brpel-component-filters nil)
+  (setq brpel--component-filters nil)
   (brpel--browser-refresh-view))
 
 (transient-define-prefix brpel--browser-entity-filter-menu ()
@@ -826,7 +838,6 @@ entities."
 (transient-define-prefix brpel--browser-menu ()
   "ECS browser menu."
   ["Filters"
-   ("r" "Select Resource" brpel--browser-entity-filter-menu)
    ("c" "Filter Entities via Components" brpel--browser-entity-filter-menu)])
 
 (defun brpel-browse ()
