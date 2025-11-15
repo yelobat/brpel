@@ -83,7 +83,7 @@ METHOD is the BRP method as a string, see:
 https://docs.rs/bevy/latest/bevy/remote/index.html for more details.
 PARAMS is an alist representing the JSON object to send as `params'."
 
-  (let* ((request-id (setq brpel--remote-id (1+ brpel-remote-id)))
+  (let* ((request-id (setq brpel--remote-id (1+ brpel--remote-id)))
          (data (json-encode
                    `((jsonrpc . "2.0")
                      (id . ,request-id)
