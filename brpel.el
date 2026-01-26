@@ -519,6 +519,21 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   "List all reflectable registered resource types."
   (brpel-send-request-synchronously "world.list_resources" nil))
 
+;; Method: world.trigger_event
+(defun brpel-world-trigger-event (event value &optional callback)
+  "Triggers an EVENT, giving the event the VALUE.
+If CALLBACK is non-nil, it will be called on the result of this command."
+  (brpel-send-request "world.trigger_event"
+                      `((event . ,event)
+                        (value . ,value))
+                      (or callback 'brpel--default-callback)))
+
+(defun brpel-world-trigger-event-synchronously (event value)
+  "Triggers an EVENT, giving the event the VALUE."
+  (brpel-send-request-synchronously "world.trigger_event"
+                                    `((event . ,event)
+                                      (value . ,value))))
+
 ;; Method: registry.schema
 (defun brpel-registry-schema (&optional with-crates without-crates type-limit callback)
   "Retrieve schema information about registered types in the current app.
