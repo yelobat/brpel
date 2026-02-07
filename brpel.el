@@ -7,7 +7,7 @@
 ;; Created: September 07, 2025
 ;; Modified: September 30, 2025
 ;; Version: 0.1.0
-;; Keywords: brp comm data docs extensions games hardware lisp local multimedia processes tools unix
+;; Keywords: bevy games lisp tools
 ;; Homepage: https://github.com/yelobat/brpel
 ;; Package-Requires: ((emacs "28.1"))
 ;;
@@ -35,6 +35,17 @@
   "URL of the BRP running server."
   :type 'string
   :group 'brpel)
+
+(defvar brpel--registry-schema-index (make-hash-table :test #'equal)
+  "The Registry Schema Hash Table.")
+
+(defun brpel-remote-url-set (url)
+  "Set the `brpel-remote-url' variable to URL.
+Attempt to connect and sync the registry-schema index."
+  (setq brpel-remote-url url)
+  (condition-case err
+      (brpel--registry-schema-index-populate)
+    (error (message (car (last err))))))
 
 (defvar brpel--remote-id 1
   "Incrementing ID for JSON-RPC requests.")
@@ -233,8 +244,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (interactive "sResource name: ")
   (brpel-send-request "bevy/get_resource"
                     `((resource . ,resource-name))
-                    (lambda (res)
-                      (message (json-encode res)))))
+                    (or callback 'brpel--default-callback)))
 
 ;; Method: bevy/insert_resource
 (defun brpel-insert-resource (resource value &optional callback)
@@ -561,6 +571,26 @@ TYPE-LIMIT contains an array of with and without."
                             (type_limit . ,type-limit))
                         nil)))
 
+;; NOTE This function stores typePaths that are not useful
+;; in the context of this tool. They should realistically
+;; be discarded. For simplicity, they are just kept in as they
+;; mean no harm :)
+(defun brpel--registry-schema-index-populate ()
+  "Populate the `brpel--registry-schema-index'."
+  (brpel-registry-schema
+   nil nil nil
+   (lambda (schema)
+     (setq brpel--registry-schema-index (make-hash-table :test #'equal))
+     (dolist (field (alist-get 'result schema))
+       (let* ((type-path (alist-get 'typePath field))
+              (parts (split-string type-path "::"))
+              (last-part (car (last parts))))
+         (puthash (string-trim last-part) type-path brpel--registry-schema-index))))))
+
+(defun brpel-component (name)
+  "Obtain the typePath for component called NAME."
+  (gethash name brpel--registry-schema-index))
+
 ;; Method: rpc.discover
 (defun brpel-rpc-discover (&optional callback)
   "Discover available remote methods and server information.
@@ -571,6 +601,43 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 (defun brpel-rpc-discover-synchronously ()
   "Discover available remote methods and server information."
   (brpel-send-request-synchronously "rpc.discover" nil))
+
+;; TODO Experimental API
+(defun brpel-save-scene (path &optional allowed-components callback)
+  "Save the current established scene to PATH.
+ALLOWED-COMPONENTS specifies the components that are allowed to be saved.
+If CALLBACK is non-nil, it will be called on the result of this command."
+  (brpel-world-insert-resources
+   "brpel::SaveRequest"
+   `((path . ,(expand-file-name path))
+     (allowed_components . ,(vconcat allowed-components))) callback))
+
+;; TODO Experimental API
+(defun brpel-save-scene-synchronously (path &optional allowed-components)
+  "Save the current established scene to PATH.
+ALLOWED-COMPONENTS specifies the components that are allowed to be saved."
+  (brpel-world-insert-resources-synchronously
+   "brpel::SaveRequest"
+   `((path . ,(expand-file-name path))
+     (allowed_components . ,(vconcat allowed-components)))))
+
+(defun brpel--top-level-entities (components)
+  "Gets all of the top-level entities. Entities are filtered based on COMPONENTS."
+  (cl-set-difference (brpel--entities components)
+                     (brpel--entities (brpel-map-components (list "ChildOf")))))
+
+(defun brpel--entity-name-or-id (entity)
+  "Return ENTITY's name if available, otherwise its ID."
+  (let* ((name-type-path (brpel-component "Name"))
+         (value (brpel-world-get-components-synchronously entity (list name-type-path)))
+        (result (alist-get 'result value))
+        (components (alist-get 'components result))
+        (name (alist-get (intern name-type-path) components)))
+    (if name name entity)))
+
+(defun brpel-map-components (names)
+  "Map NAMES into typePaths."
+  (mapcar #'brpel-component names))
 
 ;; BRP Browser
 (defconst brpel--browser-buffer "*brpel browser*"
@@ -671,18 +738,52 @@ If CALLBACK is non-nil, it will be called on the result of this command."
     (magit-insert-section (brpel-resources)
       (magit-insert-heading name-count "Resources")
       (dolist (name names)
-        (magit-insert-section (brpel-resource)
+        (magit-insert-section (brpel-resource (list name))
           (magit-insert-heading name))))))
+
+(defun brpel--entity-children (entity &optional component-filters)
+  "Get the children attached to ENTITY.
+If COMPONENT-FILTERS is non-nil, it will be applied.
+To the fetched children for ENTITY."
+  (let* ((children-component (brpel-component "Children"))
+         (children-type-name (intern children-component))
+         (children-filter (list children-component))
+         (response (brpel-world-get-components-synchronously entity children-filter))
+         (result (alist-get 'result response))
+         (components (alist-get 'components result))
+         (children (append (alist-get children-type-name components) nil)))
+    (seq-filter (lambda (entity) (brpel--entity-contains-p entity component-filters)) children)))
+
+(defun brpel--entity-contains-p (entity components)
+  "Check whether ENTITY has all COMPONENTS."
+  (let* ((components (brpel-world-get-components-synchronously entity components))
+         (result (alist-get 'result components))
+         (errors (alist-get 'errors result)))
+    (if errors nil t)))
 
 (defun brpel--browser-entities ()
   "Render the ECS entities in the browser."
-  (let* ((entities (append (brpel--entities brpel--component-filters) nil))
+  (let* ((entities (brpel--top-level-entities brpel--component-filters))
          (entity-count (length entities)))
     (magit-insert-section (brpel-entities)
       (magit-insert-heading entity-count "Entities")
-      (dolist (entity (append entities nil))
-        (magit-insert-section (brpel-entity)
-          (magit-insert-heading (format "%d" entity)))))))
+      (dolist (entity entities)
+        (let ((name (brpel--entity-name entity)))
+          (magit-insert-section (brpel-entity (cons entity name))
+            (magit-insert-heading (format "%s" (or name entity)))
+            (dolist (child-entity (brpel--entity-children entity brpel--component-filters))
+              (let ((child-name (brpel--entity-name child-entity)))
+                (magit-insert-section (brpel-entity (cons child-entity child-name))
+                  (magit-insert-heading (format "╰─%s" (or child-name child-entity))))))))))))
+
+(defun brpel--entity-name (entity)
+  "Return the Name component of ENTITY. Return nil if no such component exists."
+  (let* ((name-type-path (brpel-component "Name"))
+         (response (brpel-world-get-components-synchronously entity (list name-type-path)))
+         (result (alist-get 'result response))
+         (components (alist-get 'components result))
+         (name (alist-get (intern name-type-path) components)))
+    name))
 
 (defun brpel--browser-rpc-methods ()
   "Render the supported RPC methods in the browser."
@@ -726,7 +827,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
     (magit-insert-section (brpel-entity)
       (magit-insert-heading (format "%d" brpel--current-entity))
       (dolist (component components)
-        (magit-insert-section (brpel-component)
+        (magit-insert-section (brpel-component (list component))
           (magit-insert-heading component))))))
 
 (defun brpel--browser-entity-layout ()
@@ -798,20 +899,21 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 (defun brpel--browser-select ()
   "Select the current section at point."
   (interactive)
-  (let* ((type (caar (magit-section-ident (magit-current-section))))
-         (title (buffer-substring-no-properties
-                 (line-beginning-position)
-                 (line-end-position))))
+  (let* ((ident (magit-section-ident (magit-current-section)))
+         (type (caar ident))
+         (value (cdar ident))
+         (id (car value))
+         (_name (cdr value)))
     (cond
      ((equal type 'brpel-entity)
       (setq brpel--browser-view 'entity
-            brpel--current-entity (string-to-number title))
+            brpel--current-entity id)
       (brpel--browser-refresh-view))
      ((equal type 'brpel-resource)
-      (setq brpel--current-resource title)
+      (setq brpel--current-resource id)
       (brpel--browser-resource-view))
      ((equal type 'brpel-component)
-      (setq brpel--current-component title)
+      (setq brpel--current-component id)
       (brpel--browser-component-view)))))
 
 (defun brpel--browser-remove-component-filter ()
@@ -862,7 +964,7 @@ entities."
       (brpel--update-connection))
   (condition-case err
       (let nil
-        (brpel-rpc-discover-synchronously)
+        (brpel--registry-schema-index-populate)
         (brpel--browser-render))
     (error (message (car (last err))))))
 
