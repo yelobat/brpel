@@ -587,8 +587,8 @@ TYPE-LIMIT contains an array of with and without."
               (last-part (car (last parts))))
          (puthash (string-trim last-part) type-path brpel--registry-schema-index))))))
 
-(defun brpel-component (name)
-  "Obtain the typePath for component called NAME."
+(defun brpel-type-path (name)
+  "Obtain the typePath for component/resource called NAME."
   (gethash name brpel--registry-schema-index))
 
 ;; Method: rpc.discover
@@ -621,23 +621,18 @@ ALLOWED-COMPONENTS specifies the components that are allowed to be saved."
    `((path . ,(expand-file-name path))
      (allowed_components . ,(vconcat allowed-components)))))
 
-(defun brpel--top-level-entities (components)
-  "Gets all of the top-level entities. Entities are filtered based on COMPONENTS."
-  (cl-set-difference (brpel--entities components)
-                     (brpel--entities (brpel-map-components (list "ChildOf")))))
-
 (defun brpel--entity-name-or-id (entity)
   "Return ENTITY's name if available, otherwise its ID."
-  (let* ((name-type-path (brpel-component "Name"))
+  (let* ((name-type-path (brpel-type-path "Name"))
          (value (brpel-world-get-components-synchronously entity (list name-type-path)))
         (result (alist-get 'result value))
         (components (alist-get 'components result))
         (name (alist-get (intern name-type-path) components)))
     (if name name entity)))
 
-(defun brpel-map-components (names)
+(defun brpel-map-type-paths (names)
   "Map NAMES into typePaths."
-  (mapcar #'brpel-component names))
+  (mapcar #'brpel-type-path names))
 
 ;; BRP Browser
 (defconst brpel--browser-buffer "*brpel browser*"
@@ -702,13 +697,61 @@ ALLOWED-COMPONENTS specifies the components that are allowed to be saved."
   "Major mode for browsing the Bevy ECS.")
 
 (defun brpel--entities (components)
-  "Get all entity IDs which have COMPONENTS."
-  (mapcar (lambda (entity) (alist-get 'entity entity))
-          (alist-get 'result (brpel-world-query-synchronously
-                              `((components . ,(vconcat components))
-                                (option . "all")
-                                (has . []))
-                              `((with . []) (without . []))))))
+  "Get the entity IDs for all entities that have COMPONENTS.
+If COMPONENTS is empty, return a hierarchical structure.
+If COMPONENTS is non-empty, return a flat structure."
+  (if (> (length components) 0)
+      (brpel--entities-flat components)
+    (brpel--entities-hierarchy)))
+
+(defun brpel--entities-flat (components)
+  "Get the entity IDs for all entities that have COMPONENTS."
+  (let* ((name-type-path (brpel-type-path "Name"))
+         (response (brpel-world-query-synchronously
+                    `((components . ,(vconcat components))
+                      (option . ,(vector name-type-path))
+                      (has . []))
+                    `((with . []) (without . []))))
+         (result (append (alist-get 'result response) nil)))
+    (mapcar (lambda (item) (let* ((entity (alist-get 'entity item))
+                                  (name (alist-get (intern name-type-path) (alist-get 'components item))))
+                             (list entity name nil))) result)))
+
+(defun brpel--entities-hierarchy ()
+  "Get the entity hierarchy for all entities."
+  (let* ((name-type-path (brpel-type-path "Name"))
+         (children-type-path (brpel-type-path "Children"))
+         (response (brpel-world-query-synchronously
+                    `((components . [])
+                      (option . ,(vector name-type-path children-type-path))
+                      (has . []))
+                    `((with . []) (without . []))))
+         (result (append (alist-get 'result response) nil))
+         (entity-map (make-hash-table :test 'equal))
+         (all-children-ids (make-hash-table :test 'equal))
+         (children-key (intern children-type-path))
+         (name-key (intern name-type-path)))
+
+    (dolist (item result)
+      (let* ((id (alist-get 'entity item))
+             (components (alist-get 'components item))
+             (name (alist-get name-key components))
+             (child-ids (append (alist-get children-key components) nil)))
+        (puthash id (list id name child-ids) entity-map)
+        (dolist (c-id child-ids)
+          (puthash c-id t all-children-ids))))
+
+    (cl-labels ((build-tree (id)
+                  (let* ((entry (gethash id entity-map))
+                         (name (cadr entry))
+                         (c-ids (caddr entry)))
+                    (list id name (mapcar #'build-tree c-ids)))))
+      (let (hierarchy)
+        (maphash (lambda (id _data)
+                   (unless (gethash id all-children-ids)
+                     (push (build-tree id) hierarchy)))
+                 entity-map)
+        hierarchy))))
 
 (defun brpel--try-connection ()
   "Attempts to perform a connection to the BRP server."
@@ -741,44 +784,28 @@ ALLOWED-COMPONENTS specifies the components that are allowed to be saved."
         (magit-insert-section (brpel-resource (list name))
           (magit-insert-heading name))))))
 
-(defun brpel--entity-children (entity &optional component-filters)
-  "Get the children attached to ENTITY.
-If COMPONENT-FILTERS is non-nil, it will be applied.
-To the fetched children for ENTITY."
-  (let* ((children-component (brpel-component "Children"))
-         (children-type-name (intern children-component))
-         (children-filter (list children-component))
-         (response (brpel-world-get-components-synchronously entity children-filter))
-         (result (alist-get 'result response))
-         (components (alist-get 'components result))
-         (children (append (alist-get children-type-name components) nil)))
-    (seq-filter (lambda (entity) (brpel--entity-contains-p entity component-filters)) children)))
-
-(defun brpel--entity-contains-p (entity components)
-  "Check whether ENTITY has all COMPONENTS."
-  (let* ((components (brpel-world-get-components-synchronously entity components))
-         (result (alist-get 'result components))
-         (errors (alist-get 'errors result)))
-    (if errors nil t)))
-
 (defun brpel--browser-entities ()
   "Render the ECS entities in the browser."
-  (let* ((entities (brpel--top-level-entities brpel--component-filters))
+  (let* ((entities (brpel--entities brpel--component-filters))
          (entity-count (length entities)))
     (magit-insert-section (brpel-entities)
       (magit-insert-heading entity-count "Entities")
       (dolist (entity entities)
-        (let ((name (brpel--entity-name entity)))
-          (magit-insert-section (brpel-entity (cons entity name))
-            (magit-insert-heading (format "%s" (or name entity)))
-            (dolist (child-entity (brpel--entity-children entity brpel--component-filters))
-              (let ((child-name (brpel--entity-name child-entity)))
-                (magit-insert-section (brpel-entity (cons child-entity child-name))
-                  (magit-insert-heading (format "╰─%s" (or child-name child-entity))))))))))))
+        (brpel--insert-entity-subtree entity 0)))))
+
+(defun brpel--insert-entity-subtree (subtree depth)
+  "Insert SUBTREE into the brpel browser.
+DEPTH is used internally to format the data."
+  (pcase-let ((`(,entity ,name ,children) subtree))
+    (let ((indent (concat (make-string (* 2 depth) ?-) "+")))
+    (magit-insert-section (brpel-entity (cons entity name))
+      (magit-insert-heading (format "%s %s" indent (or name entity)))
+      (dolist (child-tree children)
+        (brpel--insert-entity-subtree child-tree (1+ depth)))))))
 
 (defun brpel--entity-name (entity)
   "Return the Name component of ENTITY. Return nil if no such component exists."
-  (let* ((name-type-path (brpel-component "Name"))
+  (let* ((name-type-path (brpel-type-path "Name"))
          (response (brpel-world-get-components-synchronously entity (list name-type-path)))
          (result (alist-get 'result response))
          (components (alist-get 'components result))
@@ -902,8 +929,8 @@ To the fetched children for ENTITY."
   (let* ((ident (magit-section-ident (magit-current-section)))
          (type (caar ident))
          (value (cdar ident))
-         (id (car value))
-         (_name (cdr value)))
+         (id (car value)))
+    (message "%s" type)
     (cond
      ((equal type 'brpel-entity)
       (setq brpel--browser-view 'entity
