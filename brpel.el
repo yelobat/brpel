@@ -877,7 +877,6 @@ DEPTH is used internally to format the data."
       (save-excursion
         (insert (json-encode component)))
       (json-pretty-print (point) (point-max))
-      (display-buffer-below-selected (current-buffer) nil)
       (switch-to-buffer-other-window (current-buffer)))))
 
 (defun brpel--browser-resource-view ()
@@ -891,7 +890,6 @@ DEPTH is used internally to format the data."
       (save-excursion
         (insert (json-encode resource)))
       (json-pretty-print (point) (point-max))
-      (display-buffer-below-selected (current-buffer) nil)
       (switch-to-buffer-other-window (current-buffer)))))
 
 (defun brpel--browser-layout ()
@@ -910,7 +908,7 @@ DEPTH is used internally to format the data."
         (brpel-browser-mode)
         (save-excursion
           (brpel--browser-layout))))
-    (switch-to-buffer-other-window buffer)))
+    (switch-to-buffer buffer)))
 
 (defun brpel--browser-refresh-view ()
   "Refresh the ECS browser."
