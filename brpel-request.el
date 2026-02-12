@@ -53,10 +53,10 @@ CALLBACK is a function to handle the response buffer."
 
   (let* ((request-id (setq brpel-request--id (1+ brpel-request--id)))
          (data (json-encode
-                   `((jsonrpc . "2.0")
-                     (id . ,request-id)
-                     (method . ,method)
-                     ,@(when params `((params . ,params))))))
+                `((jsonrpc . "2.0")
+                  (id . ,request-id)
+                  (method . ,method)
+                  ,@(when params `((params . ,params))))))
          (url-request-method "POST")
          (url-request-data data)
          (url-request-extra-headers '(("Content-Type" . "application/json"))))
@@ -64,14 +64,16 @@ CALLBACK is a function to handle the response buffer."
                   (lambda (status)
                     (if-let ((handle-error (plist-get status :error)))
                         (error "Failed to connect to the BRP server"))
-                      (when (buffer-live-p (current-buffer))
-                        (goto-char url-http-end-of-headers)
-                        (let ((json-str (buffer-substring (point) (point-max))))
-                          (condition-case err
-                              (let ((json-res (json-read-from-string json-str)))
-                                (when callback (funcall callback json-res)))
-                            (error (message "BRP error: %s" err)))))))
-                  nil t))
+                    (when (buffer-live-p (current-buffer))
+                      (goto-char url-http-end-of-headers)
+                      (let ((json-str (buffer-substring (point) (point-max))))
+                        (condition-case err
+                            (let ((json-res (json-read-from-string json-str)))
+                              (if callback
+                                  (funcall callback json-res)
+                                (brpel-request--default-callback json-res)))
+                          (error (message "BRP error: %s" err)))))))
+    nil t))
 
 (defun brpel-request-send-synchronously (method &optional params)
   "Send a synchronous JSON-RPC request to the BRP server.
@@ -82,10 +84,10 @@ PARAMS is an alist representing the JSON object to send as `params'."
 
   (let* ((request-id (setq brpel-request--id (1+ brpel-request--id)))
          (data (json-encode
-                   `((jsonrpc . "2.0")
-                     (id . ,request-id)
-                     (method . ,method)
-                     ,@(when params `((params . ,params))))))
+                `((jsonrpc . "2.0")
+                  (id . ,request-id)
+                  (method . ,method)
+                  ,@(when params `((params . ,params))))))
          (url-request-method "POST")
          (url-request-data data)
          (url-request-extra-headers '(("Content-Type" . "application/json"))))
@@ -93,12 +95,12 @@ PARAMS is an alist representing the JSON object to send as `params'."
       (if-let ((blen (= 0 (buffer-size))))
           (error "Failed to connect to the BRP server"))
       (when (buffer-live-p (current-buffer))
-      (goto-char url-http-end-of-headers)
-      (let ((json-str (buffer-substring (point) (point-max))))
-        (condition-case err
-            (let ((json-res (json-read-from-string json-str)))
-              json-res)
-          (error (message "BRP error: %s" err))))))))
+        (goto-char url-http-end-of-headers)
+        (let ((json-str (buffer-substring (point) (point-max))))
+          (condition-case err
+              (let ((json-res (json-read-from-string json-str)))
+                json-res)
+            (error (message "BRP error: %s" err))))))))
 
 (provide 'brpel-request)
 ;;; brpel-request.el ends here

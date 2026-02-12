@@ -31,7 +31,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
                       `((entity . ,id)
                         (components . ,components)
                         (strict . ,(or strict :json-false)))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/query
 (defun brpel-query (data filter &optional strict callback)
@@ -44,7 +44,7 @@ See https://docs.rs/bevy_remote/latest/bevy_remote/ for more details."
                       `((data . ,data)
                         (filter . ,filter)
                         (strict . ,(or strict :json-false)))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/spawn
 ;; BUG: https://github.com/bevyengine/bevy/issues/20952
@@ -56,7 +56,7 @@ Return the resulting entity ID.
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "bevy/spawn"
                       `((components . ,components))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/destroy
 (defun brpel-destroy (id &optional callback)
@@ -64,7 +64,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "bevy/destroy"
                       `((entity . ,id))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/remove
 (defun brpel-remove (id components &optional callback)
@@ -73,7 +73,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "bevy/remove"
                       `((entity . ,id)
                         (components . ,components))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/insert
 ;; BUG: https://github.com/bevyengine/bevy/issues/20952
@@ -85,7 +85,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "bevy/insert"
                       `((entity . ,id)
                         (components . ,components))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/mutate_component
 (defun brpel-mutate-component (id component path value &optional callback)
@@ -98,7 +98,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
                         (component . ,component)
                         (path . ,path)
                         (value . ,value))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/reparent
 (defun brpel-reparent (ids &optional parent callback)
@@ -107,7 +107,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "bevy/reparent"
                       `((entities . ,ids)
                         (parent . ,parent))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/list
 (defun brpel-list (&optional id callback)
@@ -115,7 +115,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "bevy/list"
                       (if id `((entity . ,id)))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/get+watch
 ;; TODO Need to figure out how to best make use of this function.
@@ -126,7 +126,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
                       `((entity . ,id)
                         (components . ,components)
                         (strict . ,(or strict :json-false)))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/list+watch
 ;; TODO Need to figure out how to best make use of this function.
@@ -135,7 +135,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "bevy/list+watch"
                       `((entity . ,id))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/get_resource
 (defun brpel-get-resource (resource-name &optional callback)
@@ -144,7 +144,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (interactive "sResource name: ")
   (brpel-request-send "bevy/get_resource"
                     `((resource . ,resource-name))
-                    (or callback 'brpel--default-callback)))
+                    callback))
 
 ;; Method: bevy/insert_resource
 (defun brpel-insert-resource (resource value &optional callback)
@@ -153,7 +153,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "bevy/insert_resource"
                       `((resource . ,resource)
                         (value . ,value))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/remove_resource
 (defun brpel-remove-resource (resource &optional callback)
@@ -161,7 +161,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "bevy/remove_resource"
                       `((resource . ,resource))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/mutate_resource
 (defun brpel-mutate-resource (resource path value &optional callback)
@@ -173,14 +173,14 @@ If CALLBACK is non-nil, it will be called on the result of this command."
                       `((resource . ,resource)
                         (path . ,path)
                         (value . ,value))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: bevy/list_resources
 (defun brpel-list-resources (&optional callback)
   "List all reflectable registered resource types on the BRP server.
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "bevy/list_resources" nil
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; ========= Bevy v0.17.0 =========
 ;; Method: world.get_components
@@ -192,7 +192,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
                       `((entity . ,id)
                         (components . ,components)
                         (strict . ,(or strict :json-false)))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-get-components-synchronously (id components &optional strict)
   "Retrieve the values of one or more COMPONENTS from an entity with a given ID.
@@ -213,7 +213,7 @@ See https://docs.rs/bevy_remote/latest/bevy_remote/ for more details."
                       `((data . ,data)
                         (filter . ,filter)
                         (strict . ,(or strict :json-false)))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-query-synchronously (data filter &optional strict)
   "Perform a query over components in the ECS.
@@ -232,7 +232,7 @@ This returns the resulting entity ID. If CALLBACK is non-nil,
 it will be called on the result of this command."
   (brpel-request-send "world.spawn_entity"
                       `((components . ,components))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-spawn-entity-synchronously (components)
   "Create a new entity with the provided COMPONENTS.
@@ -246,7 +246,7 @@ This returns the resulting entity ID."
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "world.despawn_entity"
                       `((entity . ,id))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-despawn-entity-synchronously (id)
   "Despawn the entity with the given ID."
@@ -260,7 +260,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
        (brpel-request-send "world.remove_components"
                            `((entity . ,id)
                              (components . ,components))
-                           (or callback 'brpel--default-callback)))
+                           callback))
 
 (defun brpel-world-remove-components-synchronously (id components)
   "Delete one or more COMPONENTS from an entity with the given ID."
@@ -275,7 +275,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "world.insert_components"
                       `((entity . ,id)
                         (components . ,components))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-insert-components-synchronously (id components)
   "Insert one or more COMPONENTS into an entity with the given ID."
@@ -294,7 +294,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
                         (component . ,component)
                         (path . ,path)
                         (value . ,value))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-mutate-components-synchronously (id component path value)
   "Mutate a field in a COMPONENT for an entity with a given ID.
@@ -315,7 +315,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "world.reparent_entities"
                       `((entities . ,ids)
                         (parent . ,parent))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-reparent-entities-synchronously (ids &optional parent)
   "Assign a new PARENT to one or more entities with an ID in IDS.
@@ -331,7 +331,7 @@ removed from it's current parent."
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "world.list_components"
                       (if id `((entity ., id)) nil)
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-list-components-synchronously (&optional id)
   "List all registered components on an entity with a given ID."
@@ -349,7 +349,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
                       `((entity . ,id)
                         (components . ,components)
                         (strict . ,(or strict :json-false)))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: world.list_components+watch
 ;; TODO Need to figure out how to best make use of this function.
@@ -358,7 +358,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "world.list_components+watch"
                       `((entity . ,id))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 ;; Method: world.get_resources
 (defun brpel-world-get-resources (resource &optional callback)
@@ -366,7 +366,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "world.get_resources"
                       `((resource . ,resource))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-get-resources-synchronously (resource)
   "Extract the value of a given RESOURCE from the world."
@@ -380,7 +380,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "world.insert_resources"
                       `((resource . ,resource)
                         (value . ,value))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-insert-resources-synchronously (resource value)
   "Insert the given RESOURCE into the world with the given VALUE."
@@ -394,7 +394,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "world.remove_resources"
                       `((resource . ,resource))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-remove-resources-synchronously (resource)
   "Remove the given RESOURCE from the world."
@@ -409,7 +409,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
                       `((resource . ,resource)
                         (path . ,path)
                         (value . ,value))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-mutate-resources-synchronously (resource path value)
   "Mutate a field in a RESOURCE with PATH and set it to VALUE."
@@ -423,7 +423,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   "List all reflectable registered resource types.
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "world.list_resources" nil
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-list-resources-synchronously ()
   "List all reflectable registered resource types."
@@ -436,7 +436,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "world.trigger_event"
                       `((event . ,event)
                         (value . ,value))
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-world-trigger-event-synchronously (event value)
   "Triggers an EVENT, giving the event the VALUE."
@@ -452,12 +452,11 @@ WITHOUT-CRATES is an array of crate names to exclude from the results.
 TYPE-LIMIT contains an array of with and without
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "registry.schema"
-                      (if (and with-crates without-crates type-limit)
+                      (when (and with-crates without-crates type-limit)
                           `((with_crates . ,with-crates)
                             (without_crates . ,without-crates)
-                            (type_limit . ,type-limit))
-                        nil)
-                      (or callback 'brpel--default-callback)))
+                            (type_limit . ,type-limit)))
+                      callback))
 
 (defun brpel-registry-schema-synchronously (&optional with-crates without-crates type-limit)
   "Retrieve schema information about registered types in the current app.
@@ -465,11 +464,10 @@ WITH-CRATES is an array of crate names to include in the result.
 WITHOUT-CRATES is an array of crate names to exclude from the results.
 TYPE-LIMIT contains an array of with and without."
   (brpel-request-send-synchronously "registry.schema"
-                      (if (and with-crates without-crates type-limit)
+                      (when (and with-crates without-crates type-limit)
                           `((with_crates . ,with-crates)
                             (without_crates . ,without-crates)
-                            (type_limit . ,type-limit))
-                        nil)))
+                            (type_limit . ,type-limit)))))
 
 ;; NOTE This function stores typePaths that are not useful
 ;; in the context of this tool. They should realistically
@@ -492,7 +490,7 @@ TYPE-LIMIT contains an array of with and without."
   "Discover available remote methods and server information.
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "rpc.discover" nil
-                      (or callback 'brpel--default-callback)))
+                      callback))
 
 (defun brpel-rpc-discover-synchronously ()
   "Discover available remote methods and server information."

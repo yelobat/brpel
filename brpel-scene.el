@@ -27,7 +27,7 @@
 ALLOWED-COMPONENTS specifies the components that are allowed to be saved.
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-world-insert-resources
-   "brpel::SaveRequest"
+   (brpel-type-path "SaveRequest")
    `((path . ,(expand-file-name path))
      (allowed_components . ,(vconcat allowed-components))) callback))
 
@@ -36,7 +36,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   "Save the current established scene to PATH.
 ALLOWED-COMPONENTS specifies the components that are allowed to be saved."
   (brpel-world-insert-resources-synchronously
-   "brpel::SaveRequest"
+   (brpel-type-path "SaveRequest")
    `((path . ,(expand-file-name path))
      (allowed_components . ,(vconcat allowed-components)))))
 

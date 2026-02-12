@@ -63,7 +63,8 @@
    brpel-browser--current-entity nil
    brpel-browser--current-component nil
    brpel-browser--current-resource nil
-   brpel-browser--current-view 'main)
+   brpel-browser--current-view 'main
+   brpel-browser--component-filters nil)
   (brpel-browser--refresh-view))
 
 (define-minor-mode brpel-browser-edit-mode
@@ -73,7 +74,7 @@
 
 (defun brpel-browser--save-edits ()
   "Save the edits made to the component or resource to the ECS."
-  (if brpel-edit-mode
+  (if brpel-browser-edit-mode
       (with-current-buffer (current-buffer)
         (let* ((contents (buffer-substring-no-properties (point-min) (point-max)))
                (result (json-read-from-string contents)))
@@ -164,14 +165,14 @@ If COMPONENTS is non-empty, return a flat structure."
 (defun brpel-browser--update-connection ()
   "Update the connection to the BRP server."
   (let ((prompt "Connection failed. Enter BRP server location (CURRENT: %s): "))
-    (brpel-request-url-set (read-string (format prompt brpel-remote-url))))
-  (message (format "BRP server now located at: '%s'" brpel-remote-url)))
+    (brpel-request-url-set (read-string (format prompt brpel-request-url))))
+  (message (format "BRP server now located at: '%s'" brpel-request-url)))
 
 (defun brpel-browser--modeline ()
   "Render the ECS browser's modeline."
   (magit-insert-section (brpel-modeline)
     (insert (format "%-10s" "BRP Server: "))
-    (insert (propertize brpel-remote-url 'font-lock-face 'magit-hash))
+    (insert (propertize brpel-request-url 'font-lock-face 'magit-hash))
     (insert "\n\n")))
 
 (defun brpel-browser--resources-view ()
@@ -332,7 +333,7 @@ DEPTH is used internally to format the data."
     (message "%s" type)
     (cond
      ((equal type 'brpel-entity)
-      (setq brpel-browser--view 'entity
+      (setq brpel-browser--current-view 'entity
             brpel-browser--current-entity id)
       (brpel-browser--refresh-view))
      ((equal type 'brpel-resource)
@@ -375,16 +376,13 @@ entities."
 (transient-define-prefix brpel-browser--entity-filter-menu ()
   "Entity Component Filter menu."
   ["Actions"
-   ("a" "Add filter.." brpel-browser--component-filter-add :transient t)
+   ("a" "Add filter.." brpel-browser--component-filter-add)
    ("r" "Reset filters" brpel-browser--component-filters-reset)])
 
 (transient-define-prefix brpel-browser--menu ()
   "ECS browser menu."
   ["Filters"
-   ("c" "Filter Entities via Components" brpel-browser--entity-filter-menu)]
-
-  ["Entities"
-   ("r" "Reparent marked children under marked parent.")])
+   ("c" "Filter Entities via Components" brpel-browser--entity-filter-menu)])
 
 (defun brpel-browse ()
   "Open the brpel ECS browser."
