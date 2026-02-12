@@ -475,15 +475,13 @@ TYPE-LIMIT contains an array of with and without."
 ;; mean no harm :)
 (defun brpel--registry-schema-index-populate ()
   "Populate the `brpel--registry-schema-index'."
-  (brpel-registry-schema
-   nil nil nil
-   (lambda (schema)
-     (setq brpel--registry-schema-index (make-hash-table :test #'equal))
-     (dolist (field (alist-get 'result schema))
-       (let* ((type-path (alist-get 'typePath field))
-              (parts (split-string type-path "::"))
-              (last-part (car (last parts))))
-         (puthash (string-trim last-part) type-path brpel--registry-schema-index))))))
+  (let ((response (brpel-registry-schema-synchronously)))
+    (setq brpel--registry-schema-index (make-hash-table :test #'equal))
+    (dolist (field (alist-get 'result response))
+      (let* ((type-path (alist-get 'typePath field))
+             (parts (split-string type-path "::"))
+             (last-part (car (last parts))))
+        (puthash (string-trim last-part) type-path brpel--registry-schema-index)))))
 
 ;; Method: rpc.discover
 (defun brpel-rpc-discover (&optional callback)
