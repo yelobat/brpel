@@ -1,0 +1,15 @@
+[workspace]
+members = [
+        "brpel-rs"
+]
+resolver = "2"
+
+[workspace.dependencies]
+bevy = { version = "0.18.0", features = ["file_watcher"] }
+bevy_remote = { version = "0.18.0" }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
