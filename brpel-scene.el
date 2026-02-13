@@ -22,23 +22,27 @@
 (require 'brpel-methods)
 
 ;; TODO Experimental API
-(defun brpel-save-scene (path &optional allowed-components callback)
+(defun brpel-save-scene (path &optional with-components must-components callback)
   "Save the current established scene to PATH.
-ALLOWED-COMPONENTS specifies the components that are allowed to be saved.
+WITH-COMPONENTS specifies the components that are allowed to be saved.
+MUST-COMPONENTS specifies the components that must be present to be saved.
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-world-insert-resources
    (brpel-type-path "SaveRequest")
    `((path . ,(expand-file-name path))
-     (allowed_components . ,(vconcat allowed-components))) callback))
+     (with_components . ,(vconcat with-components))
+     (must_components . ,(vconcat must-components))) callback))
 
 ;; TODO Experimental API
-(defun brpel-save-scene-synchronously (path &optional allowed-components)
+(defun brpel-save-scene-synchronously (path &optional with-components must-components)
   "Save the current established scene to PATH.
-ALLOWED-COMPONENTS specifies the components that are allowed to be saved."
+WITH-COMPONENTS specifies the components that are allowed to be saved.
+MUST-COMPONENTS specifies the components that must be present to be saved."
   (brpel-world-insert-resources-synchronously
    (brpel-type-path "SaveRequest")
    `((path . ,(expand-file-name path))
-     (allowed_components . ,(vconcat allowed-components)))))
+     (with_components . ,(vconcat with-components))
+     (must_components . ,(vconcat must-components)))))
 
 (provide 'brpel-scene)
 ;;; brpel-scene.el ends here
