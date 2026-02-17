@@ -8,7 +8,7 @@
 ;; Modified: February 17, 2026
 ;; Version: 0.0.1
 ;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex text tools unix vc wp
-;; Homepage: https://github.com/yelobat/brpel-helper
+;; Homepage: https://github.com/yelobat/brpel
 ;; Package-Requires: ((emacs "28.1"))
 ;;
 ;; This file is not part of GNU Emacs.
