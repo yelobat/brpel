@@ -95,5 +95,13 @@ This mutation is applied to the entity with ID."
   "Remove one or more COMPONENTS from an entity with ID."
   (brpel-world-remove-components-synchronously id components))
 
+(defun mutate-resource (resource path value)
+  "Mutate the RESOURCE's VALUE of the field at PATH."
+  (brpel-world-mutate-resources-synchronously resource path value))
+
+(defun insert-resource (resource value)
+  "Insert VALUE into RESOURCE."
+  (brpel-world-insert-resources-synchronously resource value))
+
 (provide 'brpel-helper)
 ;;; brpel-helper.el ends here
