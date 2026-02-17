@@ -21,19 +21,6 @@
 
 (require 'brpel)
 
-(defun brpel-query (&optional components option has with without)
-  "Build a `brpel-world-query-synchronously' call.
-COMPONENTS is the list of components the entities must have.
-OPTION are optional components which entities can have.
-HAS is a predicate over optional components, returning true or false.
-WITH is a filter, only output entities with these components.
-WITHOUT is a filter, don't output entities with these components."
-  (brpel-world-query-synchronously
-   `((components . ,(vconcat components))
-     (option . ,(vconcat option))
-     (has . ,(vconcat has)))
-   `((with . ,(vconcat with)) (without . ,(vconcat without)))))
-
 (defun spawn-entity (components)
   "Spawn an entity with COMPONENTS."
   (let* ((response (brpel-world-spawn-entity-synchronously
@@ -50,6 +37,14 @@ WITHOUT is a filter, don't output entities with these components."
         (alpha (or a 1.0)))
     `((Srgba . ((red . ,red) (green . ,green) (blue . ,blue) (alpha . ,alpha))))))
 
+(defun Text2d (string)
+  "Create an alist for a Text2d component with STRING."
+  `((,(brpel-type-path "Text2d") . ,string)))
+
+(defun TextColor (r g b a)
+  "Create an alist for a TextColor component with R, G, B, and A."
+  `((,(brpel-type-path "TextColor") . ,(Srgba :r r :g g :b b :a a))))
+
 (cl-defun Vec2 (&key x y)
   "Return a Vec2 list with X and Y."
   (vector (or x 0.0) (or y 0.0)))
@@ -64,6 +59,9 @@ WITHOUT is a filter, don't output entities with these components."
         ("rotation" . ,rotation)
         ("scale" . ,scale))))))
 
+;; NOTE This is just a simple example of how to spawn a Sprite.
+;; Loading images is not supported as serialization of Handles
+;; is not supported by Bevy as of version 0.18.0.
 (cl-defun Sprite (&key size color)
   "Create an alist for a Sprite component with SIZE and COLOR."
   `((,(brpel-type-path "Sprite") .
@@ -74,33 +72,28 @@ WITHOUT is a filter, don't output entities with these components."
   "Create an alist for a Camera2d component."
   `((,(brpel-type-path "Camera2d") . ,(make-hash-table))))
 
-(defun brpel-spawn-Camera2d ()
-  "Spawn a Camera2d in the world."
-  (brpel-world-spawn-entity-synchronously
-   `((,(brpel-type-path "Camera2d") . ,(make-hash-table)))))
-
-(defun brpel-clear-color (r g b a)
-  "Set the ClearColor resource (assuming srgba) with R, G, B, and A."
-  (brpel-world-mutate-resources
-   "bevy_camera::clear_color::ClearColor" "0"
-   `((Srgba . ((red . ,r)
-               (green . ,g)
-               (blue . ,b)
-               (alpha . ,a))))))
-
-(defun brpel-translate (id &optional x y z)
-  "Translate entity with ID by X, Y, and Z."
+(defun mutate-translation (id &optional x y z)
+  "Mutate the translation field on a Transform component with X, Y, and Z.
+This mutation is applied to the entity with ID."
   (brpel-world-mutate-components-synchronously
    id (brpel-type-path "Transform")
    "translation"
    (vector (or x 0.0) (or y 0.0) (or z 0.0))))
 
-(defun brpel-scale (id &optional w h d)
-  "Scale entity with ID by W, H, and D."
+(defun mutate-Text2d (id &optional string)
+  "Mutate the string of a Text2d component with STRING.
+This mutation is applied to the entity with ID."
   (brpel-world-mutate-components-synchronously
-   id (brpel-type-path "Transform")
-   "scale"
-   (vector (or w 1.0) (or h 1.0) (or d 1.0))))
+   id (brpel-type-path "Text2d") "0"
+   string))
+
+(defun insert-components (id components)
+  "Insert one or more COMPONENTS into entity with ID."
+  (brpel-world-insert-components-synchronously id (apply #'append components)))
+
+(defun remove-components (id components)
+  "Remove one or more COMPONENTS from an entity with ID."
+  (brpel-world-remove-components-synchronously id components))
 
 (provide 'brpel-helper)
 ;;; brpel-helper.el ends here
