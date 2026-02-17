@@ -57,8 +57,8 @@ fn main() {
             brpel_rs::plugin,
         ))
         .register_type::<ExportableSprite>()
-        .add_systems(Startup, setup)
-        .add_systems(Startup, load_scene.after(setup))
+        //.add_systems(Startup, setup)
+        //.add_systems(Startup, load_scene.after(setup))
         .add_observer(handle_scene_load)
         .add_observer(insert_exportable_sprite)
         .add_observer(insert_sprite)
