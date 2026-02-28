@@ -22,7 +22,6 @@
 ;;; Code:
 
 (require 'brpel-common)
-(require 'brpel-browser)
 (require 'brpel-request)
 (require 'brpel-methods)
 (require 'brpel-scene)
