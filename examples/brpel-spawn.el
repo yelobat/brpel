@@ -26,7 +26,7 @@
 (require 'brpel-helper)
 
 ;; Set the request URL of the HTTP server for the Bevy App.
-(brpel-request-url-set "http://localhost:3030")
+(brpel-url-set "http://localhost:3030")
 
 ;; Spawn a Camera2d
 (spawn-entity (list
