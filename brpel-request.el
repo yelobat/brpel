@@ -31,14 +31,6 @@
 (defvar brpel-request--id 1
   "Incrementing ID for JSON-RPC requests.")
 
-(defun brpel-request-url-set (url)
-  "Set the `brpel-request-url' variable to URL.
-Attempt to connect and sync the registry-schema index."
-  (setq brpel-request-url url)
-  (condition-case err
-      (brpel--registry-schema-index-populate)
-    (error (message (car (last err))))))
-
 (defun brpel-request--default-callback (result)
   "The default callback that simply prints the RESULT of each BRP command."
   (message (json-encode result)))

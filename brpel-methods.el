@@ -22,6 +22,14 @@
 (require 'brpel-common)
 (require 'brpel-request)
 
+(defun brpel-request-url-set (url)
+  "Set the `brpel-request-url' variable to URL.
+Attempt to connect and sync the registry-schema index."
+  (setq brpel-request-url url)
+  (condition-case err
+      (brpel--registry-schema-index-populate)
+    (error (message (car (last err))))))
+
 ;; ========= Bevy v0.16.0 =========
 ;; Method: bevy/get
 (defun brpel-get (id components &optional strict callback)
