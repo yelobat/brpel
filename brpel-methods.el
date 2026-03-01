@@ -22,7 +22,7 @@
 (require 'brpel-common)
 (require 'brpel-request)
 
-(defun brpel-request-url-set (url)
+(defun brpel-url-set (url)
   "Set the `brpel-request-url' variable to URL.
 Attempt to connect and sync the registry-schema index."
   (setq brpel-request-url url)
