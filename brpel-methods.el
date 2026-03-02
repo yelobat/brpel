@@ -149,7 +149,6 @@ If CALLBACK is non-nil, it will be called on the result of this command."
 (defun brpel-get-resource (resource-name &optional callback)
   "Extract the value of a given resource with RESOURCE-NAME from the world.
 If CALLBACK is non-nil, it will be called on the result of this command."
-  (interactive "sResource name: ")
   (brpel-request-send "bevy/get_resource"
                     `((resource . ,resource-name))
                     callback))
