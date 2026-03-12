@@ -482,7 +482,7 @@ TYPE-LIMIT contains an array of with and without."
 ;; mean no harm :)
 (defun brpel--registry-schema-index-populate ()
   "Populate the `brpel--registry-schema-index'."
-  (let ((response (brpel-registry-schema-synchronously)))
+  (let ((response (setq brpel--registry-schema-cache (brpel-registry-schema-synchronously))))
     (setq brpel--registry-schema-index (make-hash-table :test #'equal))
     (dolist (field (alist-get 'result response))
       (let* ((type-path (alist-get 'typePath field))

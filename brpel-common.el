@@ -23,6 +23,9 @@
   "Interface with a BRP server from Emacs."
   :group 'brpel)
 
+(defvar brpel--registry-schema-cache nil
+  "A cache to the BRP registry schema.")
+
 (defvar brpel--registry-schema-index (make-hash-table :test #'equal)
   "The Registry Schema Hash Table.")
 

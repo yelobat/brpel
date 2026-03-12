@@ -25,5 +25,6 @@
 (require 'brpel-request)
 (require 'brpel-methods)
 (require 'brpel-scene)
+(require 'brpel-types)
 (provide 'brpel)
 ;;; brpel.el ends here
