@@ -61,7 +61,7 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   "Load the scene from PATH."
   (brpel-world-insert-resources-synchronously
    (brpel-type-path "LoadRequest")
-   `((path ., path))))
+   `((path . ,path))))
 
 (provide 'brpel-scene)
 ;;; brpel-scene.el ends here
