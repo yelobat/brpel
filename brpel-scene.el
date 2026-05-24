@@ -21,26 +21,34 @@
 
 (require 'brpel-methods)
 
-(defun brpel-save-scene (path &optional with-components must-components callback)
+(defun brpel-save-scene (path &optional with-components must-components
+                              exclude-components
+                              callback)
   "Save the current established scene to PATH.
 WITH-COMPONENTS specifies the components that are allowed to be saved.
 MUST-COMPONENTS specifies the components that must be present to be saved.
+EXCLUDE-COMPONENTS specifies the components that cannot be present to be saved.
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-world-insert-resources
    (brpel-type-path "SaveRequest")
    `((path . ,(expand-file-name path))
      (with_components . ,(vconcat with-components))
-     (must_components . ,(vconcat must-components))) callback))
+     (must_components . ,(vconcat must-components))
+     (exclude_components . ,(vconcat exclude-components)))
+   callback))
 
-(defun brpel-save-scene-synchronously (path &optional with-components must-components)
+(defun brpel-save-scene-synchronously (path &optional with-components must-components
+                                            exclude-components)
   "Save the current established scene to PATH.
 WITH-COMPONENTS specifies the components that are allowed to be saved.
-MUST-COMPONENTS specifies the components that must be present to be saved."
+MUST-COMPONENTS specifies the components that must be present to be saved.
+EXCLUDE-COMPONENTS specifies the components that cannot be present to be saved."
   (brpel-world-insert-resources-synchronously
    (brpel-type-path "SaveRequest")
    `((path . ,(expand-file-name path))
      (with_components . ,(vconcat with-components))
-     (must_components . ,(vconcat must-components)))))
+     (must_components . ,(vconcat must-components))
+     (exclude_components . ,(vconcat exclude-components)))))
 
 (defun brpel-load-scene (path &optional callback)
   "Load the scene from PATH.
