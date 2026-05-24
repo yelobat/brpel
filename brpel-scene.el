@@ -21,7 +21,6 @@
 
 (require 'brpel-methods)
 
-;; TODO Experimental API
 (defun brpel-save-scene (path &optional with-components must-components callback)
   "Save the current established scene to PATH.
 WITH-COMPONENTS specifies the components that are allowed to be saved.
@@ -33,7 +32,6 @@ If CALLBACK is non-nil, it will be called on the result of this command."
      (with_components . ,(vconcat with-components))
      (must_components . ,(vconcat must-components))) callback))
 
-;; TODO Experimental API
 (defun brpel-save-scene-synchronously (path &optional with-components must-components)
   "Save the current established scene to PATH.
 WITH-COMPONENTS specifies the components that are allowed to be saved.
