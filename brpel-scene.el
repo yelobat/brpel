@@ -44,5 +44,18 @@ MUST-COMPONENTS specifies the components that must be present to be saved."
      (with_components . ,(vconcat with-components))
      (must_components . ,(vconcat must-components)))))
 
+(defun brpel-load-scene (path &optional callback)
+  "Load the scene from PATH.
+If CALLBACK is non-nil, it will be called on the result of this command."
+  (brpel-world-insert-resources
+   (brpel-type-path "LoadRequest")
+   `((path . ,(expand-file-name path))) callback))
+
+(defun brpel-load-scene-synchronously (path)
+  "Load the scene from PATH."
+  (brpel-world-insert-resources-synchronously
+   (brpel-type-path "LoadRequest")
+   `((path ., (expand-file-name path)))))
+
 (provide 'brpel-scene)
 ;;; brpel-scene.el ends here
