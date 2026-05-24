@@ -47,13 +47,13 @@ MUST-COMPONENTS specifies the components that must be present to be saved."
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-world-insert-resources
    (brpel-type-path "LoadRequest")
-   `((path . ,(expand-file-name path))) callback))
+   `((path . ,path)) callback))
 
 (defun brpel-load-scene-synchronously (path)
   "Load the scene from PATH."
   (brpel-world-insert-resources-synchronously
    (brpel-type-path "LoadRequest")
-   `((path ., (expand-file-name path)))))
+   `((path ., path))))
 
 (provide 'brpel-scene)
 ;;; brpel-scene.el ends here
