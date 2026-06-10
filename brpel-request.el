@@ -28,6 +28,15 @@
   :type 'string
   :group 'brpel)
 
+(defcustom brpel-request-timeout 5
+  "Seconds to wait for a synchronous BRP response before giving up.
+Large responses such as `registry.schema' can take longer than a
+second, so keep this comfortably above one."
+  :type 'number
+  :group 'brpel)
+
+(defvar url-http-end-of-headers)
+
 (defvar brpel-request--id 1
   "Incrementing ID for JSON-RPC requests.")
 
@@ -64,8 +73,8 @@ CALLBACK is a function to handle the response buffer."
                               (if callback
                                   (funcall callback json-res)
                                 (brpel-request--default-callback json-res)))
-                          (error (message "BRP error: %s" err)))))))
-    nil t))
+                          (error (message "BRP error: %s" err))))))
+                  nil t)))
 
 (defun brpel-request-send-synchronously (method &optional params)
   "Send a synchronous JSON-RPC request to the BRP server.
@@ -82,17 +91,20 @@ PARAMS is an alist representing the JSON object to send as `params'."
                   ,@(when params `((params . ,params))))))
          (url-request-method "POST")
          (url-request-data data)
-         (url-request-extra-headers '(("Content-Type" . "application/json"))))
-    (with-current-buffer (url-retrieve-synchronously brpel-request-url t t 1)
-      (if-let ((blen (= 0 (buffer-size))))
-          (error "Failed to connect to the BRP server"))
-      (when (buffer-live-p (current-buffer))
-        (goto-char url-http-end-of-headers)
-        (let ((json-str (buffer-substring (point) (point-max))))
-          (condition-case err
-              (let ((json-res (json-read-from-string json-str)))
-                json-res)
-            (error (message "BRP error: %s" err))))))))
+         (url-request-extra-headers '(("Content-Type" . "application/json")))
+         (buffer (url-retrieve-synchronously brpel-request-url t t
+                                             brpel-request-timeout)))
+    (unless (and buffer (buffer-live-p buffer)
+                 (> (buffer-size buffer) 0))
+      (error "Failed to connect to the BRP server at %s" brpel-request-url))
+    (unwind-protect
+        (with-current-buffer buffer
+          (goto-char url-http-end-of-headers)
+          (let ((json-str (buffer-substring (point) (point-max))))
+            (condition-case err
+                (json-read-from-string json-str)
+              (error (message "BRP error: %s" err) nil))))
+      (kill-buffer buffer))))
 
 (provide 'brpel-request)
 ;;; brpel-request.el ends here
