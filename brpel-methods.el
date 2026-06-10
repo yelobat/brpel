@@ -25,10 +25,18 @@
 (defun brpel-url-set (url)
   "Set the `brpel-request-url' variable to URL.
 Attempt to connect and sync the registry-schema index."
+  (interactive (list (read-string "BRP server URL: " brpel-request-url)))
   (setq brpel-request-url url)
   (condition-case err
       (brpel--registry-schema-index-populate)
-    (error (message (car (last err))))))
+    (error (message "%s" (error-message-string err))))
+  brpel-request-url)
+
+(defun brpel-connected-p ()
+  "Return non-nil if a BRP server is reachable at `brpel-request-url'."
+  (condition-case nil
+      (and (brpel-result (brpel-rpc-discover-synchronously)) t)
+    (error nil)))
 
 ;; ========= Bevy v0.16.0 =========
 ;; Method: bevy/get
@@ -233,19 +241,28 @@ See https://docs.rs/bevy_remote/latest/bevy_remote/ for more details."
                         (strict . ,(or strict :json-false)))))
 
 ;; Method: world.spawn_entity
-(defun brpel-world-spawn-entity (components &optional callback)
+(defun brpel--spawn-components (components)
+  "Return COMPONENTS in a form that encodes as a JSON object.
+A nil COMPONENTS would encode as null, which BRP rejects, so it is
+replaced with an empty object to allow spawning empty entities."
+  (or components (make-hash-table)))
+
+(defun brpel-world-spawn-entity (&optional components callback)
   "Create a new entity with the provided COMPONENTS.
+If COMPONENTS is nil, spawn an empty entity.
 This returns the resulting entity ID. If CALLBACK is non-nil,
 it will be called on the result of this command."
   (brpel-request-send "world.spawn_entity"
-                      `((components . ,components))
+                      `((components . ,(brpel--spawn-components components)))
                       callback))
 
-(defun brpel-world-spawn-entity-synchronously (components)
+(defun brpel-world-spawn-entity-synchronously (&optional components)
   "Create a new entity with the provided COMPONENTS.
+If COMPONENTS is nil, spawn an empty entity.
 This returns the resulting entity ID."
-  (brpel-request-send-synchronously "world.spawn_entity"
-                      `((components . ,components))))
+  (brpel-request-send-synchronously
+   "world.spawn_entity"
+   `((components . ,(brpel--spawn-components components)))))
 
 ;; Method: world.despawn_entity
 (defun brpel-world-despawn-entity (id &optional callback)
@@ -452,6 +469,15 @@ If CALLBACK is non-nil, it will be called on the result of this command."
                                       (value . ,value))))
 
 ;; Method: registry.schema
+(defun brpel--registry-schema-params (with-crates without-crates type-limit)
+  "Build the registry.schema params from the given filters.
+Any of WITH-CRATES, WITHOUT-CRATES, and TYPE-LIMIT may be nil; only the
+non-nil filters are included.  Return nil when all are nil."
+  (append
+   (when with-crates `((with_crates . ,with-crates)))
+   (when without-crates `((without_crates . ,without-crates)))
+   (when type-limit `((type_limit . ,type-limit)))))
+
 (defun brpel-registry-schema (&optional with-crates without-crates type-limit callback)
   "Retrieve schema information about registered types in the current app.
 WITH-CRATES is an array of crate names to include in the result.
@@ -459,10 +485,8 @@ WITHOUT-CRATES is an array of crate names to exclude from the results.
 TYPE-LIMIT contains an array of with and without
 If CALLBACK is non-nil, it will be called on the result of this command."
   (brpel-request-send "registry.schema"
-                      (when (and with-crates without-crates type-limit)
-                          `((with_crates . ,with-crates)
-                            (without_crates . ,without-crates)
-                            (type_limit . ,type-limit)))
+                      (brpel--registry-schema-params
+                       with-crates without-crates type-limit)
                       callback))
 
 (defun brpel-registry-schema-synchronously (&optional with-crates without-crates type-limit)
@@ -471,10 +495,8 @@ WITH-CRATES is an array of crate names to include in the result.
 WITHOUT-CRATES is an array of crate names to exclude from the results.
 TYPE-LIMIT contains an array of with and without."
   (brpel-request-send-synchronously "registry.schema"
-                      (when (and with-crates without-crates type-limit)
-                          `((with_crates . ,with-crates)
-                            (without_crates . ,without-crates)
-                            (type_limit . ,type-limit)))))
+                                    (brpel--registry-schema-params
+                                     with-crates without-crates type-limit)))
 
 ;; NOTE This function stores typePaths that are not useful
 ;; in the context of this tool. They should realistically
@@ -489,6 +511,15 @@ TYPE-LIMIT contains an array of with and without."
              (parts (split-string type-path "::"))
              (last-part (car (last parts))))
         (puthash (string-trim last-part) type-path brpel--registry-schema-index)))))
+
+(defun brpel-registry-refresh ()
+  "Re-fetch the registry schema and rebuild the type-path index.
+Call this after connecting to a different app, or after the app has
+registered new types, so `brpel-type-path' stays accurate."
+  (interactive)
+  (brpel--registry-schema-index-populate)
+  (message "BRP registry schema synced (%d types)"
+           (hash-table-count brpel--registry-schema-index)))
 
 ;; Method: rpc.discover
 (defun brpel-rpc-discover (&optional callback)
