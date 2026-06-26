@@ -59,7 +59,7 @@ CALLBACK is a function to handle the response buffer."
                   (method . ,method)
                   ,@(when params `((params . ,params))))))
          (url-request-method "POST")
-         (url-request-data data)
+         (url-request-data (encode-coding-string data 'utf-8))
          (url-request-extra-headers '(("Content-Type" . "application/json"))))
     (url-retrieve brpel-request-url
                   (lambda (status)
@@ -67,7 +67,9 @@ CALLBACK is a function to handle the response buffer."
                         (error "Failed to connect to the BRP server"))
                     (when (buffer-live-p (current-buffer))
                       (goto-char url-http-end-of-headers)
-                      (let ((json-str (buffer-substring (point) (point-max))))
+                      (let ((json-str (decode-coding-string
+                                       (buffer-substring (point) (point-max))
+                                       'utf-8)))
                         (condition-case err
                             (let ((json-res (json-read-from-string json-str)))
                               (if callback
@@ -90,7 +92,7 @@ PARAMS is an alist representing the JSON object to send as `params'."
                   (method . ,method)
                   ,@(when params `((params . ,params))))))
          (url-request-method "POST")
-         (url-request-data data)
+         (url-request-data (encode-coding-string data 'utf-8))
          (url-request-extra-headers '(("Content-Type" . "application/json")))
          (buffer (url-retrieve-synchronously brpel-request-url t t
                                              brpel-request-timeout)))
@@ -100,7 +102,9 @@ PARAMS is an alist representing the JSON object to send as `params'."
     (unwind-protect
         (with-current-buffer buffer
           (goto-char url-http-end-of-headers)
-          (let ((json-str (buffer-substring (point) (point-max))))
+          (let ((json-str (decode-coding-string
+                           (buffer-substring (point) (point-max))
+                           'utf-8)))
             (condition-case err
                 (json-read-from-string json-str)
               (error (message "BRP error: %s" err) nil))))
