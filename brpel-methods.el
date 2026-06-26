@@ -532,5 +532,31 @@ If CALLBACK is non-nil, it will be called on the result of this command."
   "Discover available remote methods and server information."
   (brpel-request-send-synchronously "rpc.discover" nil))
 
+;; ========= Bevy v0.19.0 =========
+(defun brpel-schedule-list (&optional callback)
+  "Return [`ScheduleLabel'] as:
+- `schedule_labels' which are available for further inspection.
+- `unavailable_schedule_labels' are unavailable for further inspection.
+- `empty_schedule_labels' are labels that don't have schedules.
+If CALLBACK is non-nil, it will be called on the result of this command."
+  (brpel-request-send "schedule.list" nil callback))
+
+(defun brpel-schedule-list-synchronously ()
+  "Return [`ScheduleLabel'] as:
+- `schedule_labels' which are available for further inspection.
+- `unavailable_schedule_labels' are unavailable for further inspection.
+- `empty_schedule_labels' are labels that don't have schedules."
+  (brpel-request-send-synchronously "schedule.list"))
+
+(defun brpel-schedule-graph (schedule-label &optional callback)
+  "Return the schedule graph with SCHEDULE-LABEL.
+If CALLBACK is non-nil, it will be called on the result of this command."
+  (brpel-request-send "schedule.graph" `((schedule_label . ,schedule-label)) callback))
+
+(defun brpel-schedule-graph-synchronously (schedule-label)
+  "Return the schedule graph with SCHEDULE-LABEL."
+  (brpel-request-send-synchronously "schedule.graph"
+                                    `((schedule_label . ,schedule-label))))
+
 (provide 'brpel-methods)
 ;;; brpel-methods.el ends here
